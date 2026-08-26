@@ -12,6 +12,39 @@ time-base error, plus a sliding-band noise-reduction round trip. FFGL effect,
 `FR01`. Built 2026-08-26 and tested the same day in Arena 7.27.1 on macOS and on
 Windows.*
 
+## Released v0.1.0, 2026-08-26
+
+The full fleet release, same day as the build. GitHub release with four assets
+(macOS universal dmg + zip, Windows x64 setup.exe + zip); the macOS pair signed,
+notarised and stapled by `com.stoatworks.autosign` about a minute after CI
+published, which is the ordering the checklist insists on — running
+`gen-downloads.py` before the auto-signer writes a download block whose sizes
+are wrong within minutes.
+
+All the homes: [the repo](https://github.com/stoatworks-labs/ferric),
+[the project page](https://stoatworks-labs.com/software/ferric/),
+[the guide](https://stoatworks-labs.com/software/ferric/guide/),
+[the video](https://www.youtube.com/watch?v=PccB5tL7rsQ), the embed in both the
+README and `projects.json`, and the download block in both the README and
+`downloads.json`. Ferric is in the Burrow catalogue with real release notes.
+
+**The video is rendered, not filmed**, like every FFGL plugin in this fleet —
+`frtest --pipe` puts Resolume's own demo clips through the real plugin class
+with a cue sheet driving the parameters. The `--pipe` mode was added for this
+and landed *after* the tag, which is fine: it is harness-only and not in the
+shipped bundle. Clips were chosen by measuring horizontal against vertical
+gradient energy, because this plugin is one-dimensional — `NeonRoom2_32` is
+0.28 (horizontal lines, so the travelling wave shears them legibly) and
+`Enter5_12` is 3.02 (vertical hairlines, which come apart into ribbons one at a
+time). That reasoning is written out in `video/projects/ferric/render.py`.
+
+⚠️ **A thumbnail grab from an ordinary transport beat came out CLEAN.** Wow and
+flutter pass through zero twice a cycle, so a single frame catches the error
+wherever it happens to be. abomerration pins its thumbnail to a beat where the
+envelope is 1.0; there is no such pin here, so the thumbnail is taken from the
+ribbons beat, where Tape Speed is slow enough that every frame is torn
+regardless. Written up in `video/projects/ferric/build.py`.
+
 ## Status, 2026-08-26
 
 **ferric** (`~/Projects/resolume/ferric`, started 2026-08-26, MIT, intended

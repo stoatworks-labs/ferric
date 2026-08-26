@@ -22,6 +22,10 @@ or the clock.
   `--set "Flutter=0.8" --set "NR Type=2" --set "Tape Speed=0.2"`
 - Render size: `--size 1920x1080`
 - Advance the synthetic transport: `--frames 60` (60 fps, 120 bpm)
+- Put real footage through the real shaders (for the project video):
+  `ffmpeg … -f rawvideo -pix_fmt rgba - | ./build/frtest --pipe --size WxH --fps 30 --script cues.txt | ffmpeg …`
+- A cue sheet is `frame  Parameter Name  value`; option and boolean parameters
+  must STEP (two keys one frame apart), never ramp.
 
 ## Verify
 - **Everything (23 checks, clean universal build): `tools/verify.sh`**
@@ -83,14 +87,22 @@ CI runs; everything else renders and runs locally before a tag.
   **`half`** are GLSL reserved words. `half` cost a shader here.
 - Public repo. "Commit" = commit **and** push.
 
+## Released
+
+**v0.1.0, 2026-08-26** — the first release. Signed and notarised on macOS,
+Windows x64 built and tested. All five homes agree: repo, website project page,
+YouTube, both embed links, and the download block. See `docs/NOTES.md`.
+
 ## Not built yet
 - **The OpenFX build.** `Transport.cpp`, `Compander.cpp`, `Controls.cpp` and
   `Drive.cpp` are already host-agnostic and link straight from source when it
   lands; only the per-pixel stage needs mirroring on the CPU. See the note at the
   foot of `CMakeLists.txt`.
-- **The backend registration.** `source/StoatworksAbout.h` is hand-written and
-  says so; adding the `projects.json` entry publishes a page, so it is a
-  deliberate step rather than a side effect of scaffolding.
+- **The browser demo.** Most video plugins in this fleet ship a hand-written
+  WebGL demo at `<slug>-demo.stoatworks-labs.com`, served from `demo/` by the
+  repo's own Worker. Ferric has none. Nothing deploys it automatically and
+  `gen-downloads.py` does not know it exists, so adding one is a deliberate
+  piece of work — see the checklist's section 1c.
 
 ## Diagnostics
 
