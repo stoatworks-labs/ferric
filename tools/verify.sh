@@ -307,10 +307,12 @@ wf = "".join(p.read_text() for p in pathlib.Path(".github/workflows").glob("*.ym
 passed = set(re.findall(r"-D([A-Z][A-Z0-9_]*)", wf))
 declared = set(re.findall(r"^option\(([A-Z][A-Z0-9_]*)",
                           pathlib.Path("CMakeLists.txt").read_text(), re.M))
-# CMake's own, plus the toolchain variables the Windows job needs.
-builtin = {"CMAKE_BUILD_TYPE", "CMAKE_OSX_ARCHITECTURES", "CMAKE_TOOLCHAIN_FILE",
-           "CMAKE_INSTALL_PREFIX", "VCPKG_TARGET_TRIPLET", "BUILD_OFX"}
-unknown = sorted(passed - declared - builtin)
+# Anything CMAKE_* is CMake's own and is never declared by a project, plus the
+# toolchain and find-module variables the Windows job needs. The point of the
+# check is a flag named after ANOTHER PROJECT, so the filter is deliberately
+# generous rather than an inventory.
+builtin = {"VCPKG_TARGET_TRIPLET", "BUILD_OFX", "GLEW_USE_STATIC_LIBS"}
+unknown = sorted(n for n in passed - declared - builtin if not n.startswith("CMAKE_"))
 if unknown:
     print("  unknown to CMakeLists.txt: " + ", ".join(unknown))
 sys.exit(1 if unknown else 0)
