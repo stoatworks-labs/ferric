@@ -286,6 +286,42 @@ if [ -n "$exact" ]; then
 fi
 
 # ---------------------------------------------------------------------------
+head_ "Workflow flags"
+# ---------------------------------------------------------------------------
+# ☠️ Every `-D<NAME>` a workflow passes must be an option this project actually
+# declares, or CMake ignores it with a warning nobody reads and the job builds
+# something other than what was asked for.
+#
+# This repo was scaffolded from abomerration, whose release.yml had itself been
+# renamed from tilter's. The rename used `s/\bTILTER_/.../`, and `\b` matches
+# nothing between the `D` and the `T` of `-DTILTER_BUILD_TOOLS` — so the flag
+# survived two renames and shipped here, where CMake duly reported "Manually-
+# specified variables were not used by the project" into a green log.
+#
+# Found by a parallel session hitting the same thing in macroblock, where it was
+# worse: there the ignored flag killed a whole job. Any repo forked from a
+# sibling can have it.
+if python3 - <<'PYFLAGS'
+import re, pathlib, sys
+wf = "".join(p.read_text() for p in pathlib.Path(".github/workflows").glob("*.yml"))
+passed = set(re.findall(r"-D([A-Z][A-Z0-9_]*)", wf))
+declared = set(re.findall(r"^option\(([A-Z][A-Z0-9_]*)",
+                          pathlib.Path("CMakeLists.txt").read_text(), re.M))
+# CMake's own, plus the toolchain variables the Windows job needs.
+builtin = {"CMAKE_BUILD_TYPE", "CMAKE_OSX_ARCHITECTURES", "CMAKE_TOOLCHAIN_FILE",
+           "CMAKE_INSTALL_PREFIX", "VCPKG_TARGET_TRIPLET", "BUILD_OFX"}
+unknown = sorted(passed - declared - builtin)
+if unknown:
+    print("  unknown to CMakeLists.txt: " + ", ".join(unknown))
+sys.exit(1 if unknown else 0)
+PYFLAGS
+then
+    ok "every -D a workflow passes is a real option"
+else
+    bad "a workflow passes a -D this project does not declare -- CMake will ignore it"
+fi
+
+# ---------------------------------------------------------------------------
 head_ "The harness"
 # ---------------------------------------------------------------------------
 for check in tbe weighting wf identity roundtrip denoise nr scan drive clock presets echo; do
