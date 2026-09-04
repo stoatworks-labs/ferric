@@ -24,7 +24,7 @@ static CFFGLPluginInfo PluginInfo(
 	0,                                                   // Plugin major version number
 	1,                                                   // Plugin minor version number
 	FF_EFFECT,                                           // Plugin type
-	"Wow, flutter and tape noise reduction",             // Plugin description
+	"Put the picture on tape.\n\nWow and flutter is not a wobble applied to a picture. It is a timing error applied to a signal, and a picture read off tape is a signal with a clock - so every pixel has a tape time, and its displacement is one error signal evaluated there.\n\nEverything falls out of that. Wow is slower than one picture, so the whole frame leans and breathes together. Flutter fits a cycle or two into a picture, so it draws a travelling wave down the image.\n\nThe oxide adds its own hiss and drops out here and there, and the sliding-band noise reduction that hid one under the other is here too.\n\nStart from a Preset, at the bottom.",// Plugin description
 	"Ferric FFGL effect"                                 // About
 );
 
