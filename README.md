@@ -28,14 +28,14 @@ readout of weighted wow and flutter underneath.*
 
 ## Download
 
-**[v0.1.1](https://github.com/stoatworks-labs/ferric/releases/tag/v0.1.1)** — prebuilt for macOS and Windows. Pick your platform:
+**[v0.1.2](https://github.com/stoatworks-labs/ferric/releases/tag/v0.1.2)** — prebuilt for macOS and Windows. Pick your platform:
 
 <details>
 <summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`ferric-0.1.1-macos-universal.dmg`](https://github.com/stoatworks-labs/ferric/releases/download/v0.1.1/ferric-0.1.1-macos-universal.dmg) | 231 KB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`ferric-0.1.2-macos-universal.dmg`](https://github.com/stoatworks-labs/ferric/releases/download/v0.1.2/ferric-0.1.2-macos-universal.dmg) | 231 KB |
 | Universal (Apple Silicon + Intel) · .zip archive | [`ferric-macos-universal.zip`](https://github.com/stoatworks-labs/ferric/releases/latest/download/ferric-macos-universal.zip) | 192 KB |
 
 </details>
@@ -45,7 +45,7 @@ readout of weighted wow and flutter underneath.*
 
 | Build | Download | Size |
 | --- | --- | --- |
-| x64 · .exe installer | [`ferric-0.1.1-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/ferric/releases/download/v0.1.1/ferric-0.1.1-windows-x86_64-setup.exe) | 227 KB |
+| x64 · .exe installer | [`ferric-0.1.2-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/ferric/releases/download/v0.1.2/ferric-0.1.2-windows-x86_64-setup.exe) | 227 KB |
 | x64 · .zip archive | [`ferric-windows-x86_64.zip`](https://github.com/stoatworks-labs/ferric/releases/latest/download/ferric-windows-x86_64.zip) | 121 KB |
 
 </details>
