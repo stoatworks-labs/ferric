@@ -23,12 +23,17 @@
         --drive           the reaction arithmetic, including the bar recovery
         --clock           milliseconds and seconds hosts produce the same picture
         --presets         every factory preset is distinct and non-degenerate
-        --bench           frame cost at 1080p and 4K
+        --cpu             the CPU mirror the OpenFX build renders with, against the GPU
+        --bench           frame cost at 1080p and 4K, GPU and CPU
         --pipe            raw RGBA frames in on stdin, out on stdout
         --script PATH     a `frame Parameter Name value` cue sheet for --pipe
         --fps N           the cue sheet's frame rate (default 30)
         --size WxH        render size (default 640x360)
         --frames N        advance this many frames at 60 fps before writing (default 2)
+        --card ramp       render ofxprobe's input instead of the test card, so an
+                          OpenFX render and an FFGL one can be compared pixel for pixel
+        --silent          no synthetic spectrum (the trace meters then read zero, as
+                          they do in the OpenFX build)
 
     ## What each check can and cannot catch
 
@@ -80,6 +85,15 @@
     `--presets` catches the degenerate ones -- a preset that renders black, or
     that is identical to another, or that does nothing at all.
 
+    `--cpu` is to the OpenFX build what `--tbe` is to the error signal. The
+    OpenFX plugin renders with `CpuPasses.cpp`, a C++ transcription of the three
+    GLSL passes, and this renders the same frames through the real plugin on
+    the GPU and through `cpu::render` -- the very function the OpenFX plugin
+    calls -- and compares them pixel for pixel, at defaults, at settings that
+    exercise every stage, at every preset the OpenFX menu offers, and ten
+    seconds in. **It carries its own control**: the CPU at one Flutter against
+    the GPU at another, which must fail.
+
     None of them catches a dead control. See `tools/sweep.py`.
 */
 
@@ -96,10 +110,12 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "Compander.h"
 #include "Controls.h"
+#include "CpuPasses.h"
 #include "Drive.h"
 #include "Ferric.h"
 #include "Presets.h"
@@ -275,6 +291,31 @@ Rgba hBarsPixel( float, float y )
 {
 	const float v = std::fmod( y, 0.02f ) < 0.01f ? 0.30f : 0.70f;
 	return { v, v, v, 1.0f };
+}
+
+/// ofxprobe's input, exactly: red `x * 4` and green `y * 8`, both wrapping at
+/// 256, blue 128, opaque -- with `y` counted from the BOTTOM, because ofxprobe
+/// fills an OFX image and OFX rows run bottom-up. Returned top-down, like every
+/// other scene here. Hard edges every 64 columns and every 32 rows, and colour
+/// on every channel, so a misplaced fetch or a swapped channel cannot hide.
+std::vector< unsigned char > buildRamp( int width, int height )
+{
+	std::vector< unsigned char > rgba( static_cast< size_t >( width ) * height * 4 );
+
+	for( int yDown = 0; yDown < height; ++yDown )
+	{
+		const int y = height - 1 - yDown;
+		for( int x = 0; x < width; ++x )
+		{
+			unsigned char* p = rgba.data() + ( static_cast< size_t >( yDown ) * width + x ) * 4;
+			p[ 0 ]           = static_cast< unsigned char >( ( x * 4 ) & 0xff );
+			p[ 1 ]           = static_cast< unsigned char >( ( y * 8 ) & 0xff );
+			p[ 2 ]           = 128;
+			p[ 3 ]           = 255;
+		}
+	}
+
+	return rgba;
 }
 
 std::vector< unsigned char > buildScene( int width, int height, Rgba ( *pixel )( float, float ) )
@@ -550,9 +591,11 @@ void injectSpectrum( Ferric& plugin, const std::vector< float >& bins )
 
 struct Options
 {
-	int width  = 640;
-	int height = 360;
-	int frames = 2;
+	int width   = 640;
+	int height  = 360;
+	int frames  = 2;
+	bool ramp   = false;///< --card ramp: ofxprobe's input rather than the test card
+	bool silent = false;///< --silent: no synthetic spectrum
 	std::vector< std::pair< std::string, float > > sets;
 };
 
@@ -582,7 +625,8 @@ bool applySets( Ferric& plugin, const Options& options )
 /// of frames before it commits, and because a plugin that only ever renders
 /// frame zero is a plugin whose time handling is never exercised.
 bool driveFrames( Driver& driver, const Target& target, GLuint input,
-                  int inputWidth, int inputHeight, int frames, double startSeconds = 0.0 )
+                  int inputWidth, int inputHeight, int frames, double startSeconds = 0.0,
+                  bool silent = false )
 {
 	//The harness DECLARES its unit rather than letting the calibration infer
 	//one. An absolute time handed over in a single frame is genuinely
@@ -608,7 +652,8 @@ bool driveFrames( Driver& driver, const Target& target, GLuint input,
 	for( int f = 0; f < std::max( 1, frames ); ++f )
 	{
 		const double seconds = startSeconds + static_cast< double >( f ) / 60.0;
-		injectSpectrum( driver.plugin, bins );
+		if( !silent )
+			injectSpectrum( driver.plugin, bins );
 		driver.plugin.SetTime( seconds );
 
 		//A transport that never gets a tempo cannot lock to one, and Beat Depth
@@ -1893,6 +1938,213 @@ bool checkPresets()
 }
 
 /**
+    The CPU mirror against the GPU: the OpenFX build's render, held to the FFGL
+    build's.
+
+    The OpenFX plugin renders with `CpuPasses.cpp`, which is the three GLSL
+    passes written out again in C++. This renders the same frame both ways --
+    the real plugin through the real FFGL sequence on the GPU, and
+    `cpu::frameAt` + `cpu::render`, the exact calls the OpenFX plugin makes --
+    from the same input, the same controls and the same clock, and compares
+    them pixel for pixel in 8 bits, which is what both of them hand a host.
+
+    Both sides start their clock at zero and run at 60 fps, which is the one
+    condition under which the FFGL build's integrated hiss and dropout phases
+    equal the OpenFX build's `time * rate`. The ten-seconds-in case is there to
+    show that stays true once both phases have wrapped many times over.
+
+    No spectrum is injected on the GPU side, so the trace's meters read zero as
+    they do in the OpenFX build; with every reactive depth at zero nothing else
+    in the picture depends on the spectrum anyway (`--drive` asserts that).
+
+    **Measured, on Apple Silicon: worst 1/255 in every case, and not one pixel
+    more than one code value out.** A neutral Ferric is bit-exact both ways.
+    Each stage switched on alone -- hiss, the warp, head wear, the compander --
+    moves 4-7% of pixels by exactly one code value and no further: the two sides
+    compute the same float to within its last bits (the GPU fuses and
+    reciprocates where the CPU divides, its bilinear weights are fixed point,
+    `sin()` differs as `--tbe` measures), and a last-bit difference flips the
+    rounding of the pixels that sit within it of a code-value boundary.
+    Rounding the CPU's intermediates to half precision, as the GPU's RGBA16F
+    buffers do, was tried and changes nothing, so it is not that.
+
+    So the tolerance is 2/255 worst and 0.1% of pixels past one code value --
+    the measurement with margin, not an epsilon raised until the test passed.
+    **The control** renders the CPU at one Flutter and the GPU at another and
+    must fail; it misses by 222/255.
+*/
+struct CpuCase
+{
+	const char* name;
+	std::vector< std::pair< Ferric::ParamID, float > > sets;
+	int frames = 3;
+};
+
+struct CpuDiff
+{
+	int worst            = 0;///< worst channel, of 255, RGBA
+	size_t differing     = 0;///< pixels with any channel different
+	size_t overOne       = 0;///< pixels with any channel more than one code value out
+	double mean          = 0.0;
+	size_t pixels        = 0;
+};
+
+CpuDiff diffRgba8( const std::vector< unsigned char >& a, const std::vector< unsigned char >& b )
+{
+	CpuDiff d;
+	double sum = 0.0;
+	for( size_t i = 0; i + 3 < a.size() && i + 3 < b.size(); i += 4 )
+	{
+		int pixelWorst = 0;
+		for( int c = 0; c < 4; ++c )
+		{
+			const int v = std::abs( static_cast< int >( a[ i + c ] ) - static_cast< int >( b[ i + c ] ) );
+			pixelWorst  = std::max( pixelWorst, v );
+			sum += v;
+		}
+		d.worst = std::max( d.worst, pixelWorst );
+		if( pixelWorst > 0 )
+			++d.differing;
+		if( pixelWorst > 1 )
+			++d.overOne;
+		++d.pixels;
+	}
+	d.mean = d.pixels > 0 ? sum / static_cast< double >( d.pixels * 4 ) : 0.0;
+	return d;
+}
+
+/// What a host's 8-bit buffer would hold for a float frame: clamped and rounded
+/// to nearest, which is the conversion GL applies to a unorm target too.
+std::vector< unsigned char > quantise( const std::vector< float >& rgba )
+{
+	std::vector< unsigned char > out( rgba.size() );
+	for( size_t i = 0; i < rgba.size(); ++i )
+		out[ i ] = static_cast< unsigned char >( std::lround( std::clamp( rgba[ i ], 0.0f, 1.0f ) * 255.0f ) );
+	return out;
+}
+
+/// The CPU frame for a plugin's current controls at `seconds`, from a bottom-up
+/// RGBA8 input -- the OpenFX build's render, minus OpenFX.
+std::vector< unsigned char > renderCpu( Ferric& plugin, const std::vector< unsigned char >& bottomUp, int width,
+                                        int height, double seconds )
+{
+	std::vector< float > input( bottomUp.size() ), output( bottomUp.size() );
+	for( size_t i = 0; i < bottomUp.size(); ++i )
+		input[ i ] = static_cast< float >( bottomUp[ i ] ) / 255.0f;
+
+	const cpu::Frame frame = cpu::frameAt( plugin.hostValues(), width, height, seconds );
+	cpu::render( frame, input.data(), output.data() );
+	return quantise( output );
+}
+
+bool checkCpu()
+{
+	constexpr int kW = 640;
+	constexpr int kH = 360;
+
+	// Worst channel and the share of pixels allowed more than one code value
+	// out. Measured, then given headroom -- see above.
+	constexpr int kWorstTolerance      = 2;
+	constexpr double kOverOneTolerance = 0.001;
+
+	const std::vector< unsigned char > scene    = buildScene( kW, kH, scenePixel );
+	const std::vector< unsigned char > bottomUp = flipRows( scene, kW, kH );
+	const GLuint input                          = uploadScene( scene, kW, kH );
+
+	std::vector< CpuCase > cases = {
+		{ "defaults", {}, 3 },
+		{ "Type C, mistracked, dropouts, worn",
+		  { { Ferric::PT_NR_TYPE, 2.0f }, { Ferric::PT_MISTRACKING, 0.80f }, { Ferric::PT_DROPOUTS, 0.60f },
+		    { Ferric::PT_HEAD_WEAR, 0.70f }, { Ferric::PT_HISS, 0.50f } }, 3 },
+		{ "Failing, ribbons, rolling",
+		  { { Ferric::PT_MACHINE, 3.0f }, { Ferric::PT_TAPE_SPEED, 0.10f }, { Ferric::PT_AMOUNT, 0.60f },
+		    { Ferric::PT_VERTICAL, 1.0f }, { Ferric::PT_FLUTTER, 0.80f }, { Ferric::PT_SCRAPE, 0.60f } }, 3 },
+		{ "Type B, decode only", { { Ferric::PT_NR_TYPE, 1.0f }, { Ferric::PT_NR_MODE, 1.0f } }, 3 },
+		{ "Type C, encode only, half mix",
+		  { { Ferric::PT_NR_TYPE, 2.0f }, { Ferric::PT_NR_MODE, 2.0f }, { Ferric::PT_MIX, 0.5f } }, 3 },
+		{ "Video Head, show trace",
+		  { { Ferric::PT_MACHINE, 2.0f }, { Ferric::PT_AMOUNT, 0.40f }, { Ferric::PT_SHOW_TRACE, 1.0f } }, 3 },
+		{ "ten seconds in, dropouts", { { Ferric::PT_DROPOUTS, 0.50f }, { Ferric::PT_NR_TYPE, 2.0f } }, 601 },
+	};
+
+	// Every preset the OpenFX menu offers: the ones that set no reactive depth.
+	// The two that do are Resolume-only, and comparing them here would be
+	// comparing the audio reaction against its absence.
+	for( int element = 1; element < presets::elementCount(); ++element )
+	{
+		const float* v = presets::values( element );
+		if( v[ presets::P_BEAT_DEPTH ] != 0.0f || v[ presets::P_LEVEL_DEPTH ] != 0.0f
+		    || v[ presets::P_BAND_DEPTH ] != 0.0f )
+			continue;
+		cases.push_back( { presets::label( element ), { { Ferric::PT_PRESET, static_cast< float >( element ) } }, 3 } );
+	}
+
+	bool ok = true;
+	std::printf( "  %-36s %6s %10s %10s %8s\n", "case", "worst", "differing", ">1/255", "mean" );
+
+	for( const CpuCase& c : cases )
+	{
+		Driver driver;
+		for( const auto& s : c.sets )
+			set( driver.plugin, s.first, s.second );
+
+		Target target = makeTarget( kW, kH );
+		if( !driveFrames( driver, target, input, kW, kH, c.frames, 0.0, true ) )
+		{
+			std::printf( "FAIL  '%s' would not render on the GPU\n", c.name );
+			releaseTarget( target );
+			ok = false;
+			continue;
+		}
+		const std::vector< unsigned char > gpu = readBytes( target );
+		releaseTarget( target );
+
+		const double seconds                   = static_cast< double >( c.frames - 1 ) / 60.0;
+		const std::vector< unsigned char > cpu = renderCpu( driver.plugin, bottomUp, kW, kH, seconds );
+
+		const CpuDiff d = diffRgba8( gpu, cpu );
+		const double share = static_cast< double >( d.overOne ) / static_cast< double >( d.pixels );
+		std::printf( "  %-36s %3d/255 %10zu %10zu %8.4f\n", c.name, d.worst, d.differing, d.overOne, d.mean );
+
+		if( d.worst > kWorstTolerance || share > kOverOneTolerance )
+		{
+			std::printf( "FAIL  '%s': the CPU mirror has drifted from the GPU\n", c.name );
+			ok = false;
+		}
+	}
+
+	//---------------------------------------------------------------- control
+	{
+		Driver driver;
+		Target target = makeTarget( kW, kH );
+		driveFrames( driver, target, input, kW, kH, 3, 0.0, true );
+		const std::vector< unsigned char > gpu = readBytes( target );
+		releaseTarget( target );
+
+		set( driver.plugin, Ferric::PT_FLUTTER, 0.50f );
+		const std::vector< unsigned char > cpu = renderCpu( driver.plugin, bottomUp, kW, kH, 2.0 / 60.0 );
+
+		const CpuDiff d    = diffRgba8( gpu, cpu );
+		const double share = static_cast< double >( d.overOne ) / static_cast< double >( d.pixels );
+		std::printf( "  %-36s %3d/255 %10zu %10zu %8.4f  (must FAIL)\n", "control: Flutter 0.45 vs 0.50", d.worst,
+		             d.differing, d.overOne, d.mean );
+
+		if( d.worst <= kWorstTolerance && share <= kOverOneTolerance )
+		{
+			std::printf( "FAIL  the control passed -- this comparison cannot tell two settings apart\n" );
+			ok = false;
+		}
+	}
+
+	glDeleteTextures( 1, &input );
+
+	if( ok )
+		std::printf( "PASS  cpu  (%zu cases within %d/255 worst and %.1f%% of pixels over 1/255; control fails)\n",
+		             cases.size(), kWorstTolerance, kOverOneTolerance * 100.0 );
+	return ok;
+}
+
+/**
     The host's echo does not un-set a preset.
 
     No GL. Drives `SetFloatParameter` the way Resolume actually does: pick a
@@ -2043,6 +2295,55 @@ bool bench()
 		                  / static_cast< double >( kFrames );
 		std::printf( "  %-6s Type C + dropouts  %.3f ms/frame  (%.0f fps)\n", size.name, ms, 1000.0 / ms );
 
+		//-----------------------------------------------------------------
+		// The OpenFX build's render: the same three passes the plugin runs,
+		// split into the same bands of rows with the same barrier between
+		// passes -- on std::thread here rather than the host's multi-thread
+		// suite, and without OFX's pixel-format marshalling either side.
+		//-----------------------------------------------------------------
+		const std::vector< unsigned char > bottomUp = flipRows( scene, size.width, size.height );
+		std::vector< float > in( bottomUp.size() ), work( bottomUp.size() ), taped( bottomUp.size() );
+		for( size_t i = 0; i < bottomUp.size(); ++i )
+			in[ i ] = static_cast< float >( bottomUp[ i ] ) / 255.0f;
+
+		const cpu::Frame frame = cpu::frameAt( driver.plugin.hostValues(), size.width, size.height, 1.0 );
+
+		const unsigned int hardware = std::max( 1u, std::thread::hardware_concurrency() );
+		// Eight is what resolume-ofx-bridge's host offers; Resolve offers more.
+		for( const unsigned int threads : { 1u, std::min( 8u, hardware ), hardware } )
+		{
+			const auto pass = [ & ]( auto&& rows ) {
+				std::vector< std::thread > pool;
+				const int per = ( size.height + static_cast< int >( threads ) - 1 ) / static_cast< int >( threads );
+				for( unsigned int i = 0; i < threads; ++i )
+				{
+					const int y0 = static_cast< int >( i ) * per;
+					const int y1 = std::min( size.height, y0 + per );
+					if( y0 < y1 )
+						pool.emplace_back( [ &rows, y0, y1 ]() { rows( y0, y1 ); } );
+				}
+				for( std::thread& thread : pool )
+					thread.join();
+			};
+
+			const auto once = [ & ]() {
+				pass( [ & ]( int y0, int y1 ) { cpu::encodeRows( frame, in.data(), work.data(), y0, y1 ); } );
+				pass( [ & ]( int y0, int y1 ) { cpu::tapeRows( frame, work.data(), taped.data(), y0, y1 ); } );
+				pass( [ & ]( int y0, int y1 ) { cpu::decodeRows( frame, taped.data(), in.data(), work.data(), y0, y1 ); } );
+			};
+
+			once();
+			constexpr int kCpuFrames = 5;
+			const auto cpuStart      = std::chrono::steady_clock::now();
+			for( int f = 0; f < kCpuFrames; ++f )
+				once();
+			const double cpuMs =
+			    std::chrono::duration< double, std::milli >( std::chrono::steady_clock::now() - cpuStart ).count()
+			    / static_cast< double >( kCpuFrames );
+			std::printf( "  %-6s CPU (OpenFX), %2u thread%s  %.1f ms/frame\n", size.name, threads,
+			             threads == 1 ? " " : "s", cpuMs );
+		}
+
 		releaseTarget( target );
 		glDeleteTextures( 1, &input );
 	}
@@ -2085,7 +2386,8 @@ void list( Ferric& plugin )
 
 bool renderOne( const Options& options, const std::string& path, Rgba ( *pixel )( float, float ) )
 {
-	const std::vector< unsigned char > scene = buildScene( options.width, options.height, pixel );
+	const std::vector< unsigned char > scene = options.ramp ? buildRamp( options.width, options.height )
+	                                                        : buildScene( options.width, options.height, pixel );
 	const GLuint input                       = uploadScene( scene, options.width, options.height );
 
 	Driver driver;
@@ -2096,7 +2398,8 @@ bool renderOne( const Options& options, const std::string& path, Rgba ( *pixel )
 	}
 
 	Target target = makeTarget( options.width, options.height );
-	const bool ok = driveFrames( driver, target, input, options.width, options.height, options.frames );
+	const bool ok = driveFrames( driver, target, input, options.width, options.height, options.frames, 0.0,
+	                             options.silent );
 
 	bool written = false;
 	if( ok )
@@ -2434,6 +2737,18 @@ int main( int argc, char** argv )
 		}
 		else if( arg == "--frames" )
 			options.frames = std::max( 1, std::atoi( next().c_str() ) );
+		else if( arg == "--card" )
+		{
+			const std::string card = next();
+			if( card != "ramp" && card != "tape" )
+			{
+				std::printf( "--card wants ramp or tape\n" );
+				return 1;
+			}
+			options.ramp = card == "ramp";
+		}
+		else if( arg == "--silent" )
+			options.silent = true;
 		else if( arg == "--set" )
 		{
 			const std::string value = next();
@@ -2506,7 +2821,8 @@ int main( int argc, char** argv )
 
 	if( !scenePath.empty() )
 	{
-		const std::vector< unsigned char > scene = buildScene( options.width, options.height, scenePixel );
+		const std::vector< unsigned char > scene = options.ramp ? buildRamp( options.width, options.height )
+		                                                        : buildScene( options.width, options.height, scenePixel );
 		if( !writePng( scenePath, options.width, options.height, scene ) )
 		{
 			std::printf( "could not write %s\n", scenePath.c_str() );
@@ -2546,6 +2862,8 @@ int main( int argc, char** argv )
 			ok = checkClock();
 		else if( check == "presets" )
 			ok = checkPresets();
+		else if( check == "cpu" )
+			ok = checkCpu();
 		else if( check == "echo" )
 			ok = checkPresetEcho();
 		else if( check == "bench" )

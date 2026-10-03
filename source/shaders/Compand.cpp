@@ -13,6 +13,10 @@ namespace ferric::shaders
     `compander::slide`. Two lines each, marked `//= mirrored` in both places,
     and checked by `frtest --nr`. Compander.h has the argument for why this one
     curve is duplicated where the rest of the fleet would upload a table.
+
+    ⚠️ The tap set, `ferricEncode` and `ferricDecode` are mirrored as well, in
+    `CpuPasses.cpp`, which is what the OpenFX build renders with. Marked
+    `//= mirrored` in both files and checked by `frtest --cpu`.
 */
 const char* const kCompandFunctions = R"(
 //---------------------------------------------------------------------------
@@ -25,6 +29,7 @@ uniform float NrBoost[ 2 ];
 uniform float NrMistrack;   // linear level multiplier the decoder is wrong by
 uniform float NrTexelX;     // 1.0 / render width
 
+//= mirrored in CpuPasses.cpp -- kWide, kNarrow and ferricScanAt
 // Eleven taps at one-pixel spacing. Wide is a sigma-3 weighting of them and
 // narrow a sigma-1, so the band the compander works on can slide between two
 // corner frequencies for the cost of one fetch set. Unnormalised; the loop
@@ -83,6 +88,7 @@ FerricScan ferricScanAt( sampler2D tex, vec2 base, vec2 maxUV )
 	s.level = dev * ( 1.0 / 11.0 );
 	return s;
 }
+//= end mirrored
 
 //= mirrored -- compander::encodeGain
 float ferricGain( int stage, float level )
@@ -102,6 +108,7 @@ float ferricSlide( int stage, float level )
 }
 //= end mirrored
 
+//= mirrored in CpuPasses.cpp -- ferricEncode
 vec3 ferricEncode( vec3 c, FerricScan b )
 {
 	float lvl = b.level;
@@ -121,7 +128,9 @@ vec3 ferricEncode( vec3 c, FerricScan b )
 	vec3 d2 = y - mix( b.lpWide, b.lpNarrow, ferricSlide( 1, lvl2 ) );
 	return y + g2 * d2;
 }
+//= end mirrored
 
+//= mirrored in CpuPasses.cpp -- ferricDecode
 vec3 ferricDecode( vec3 y, FerricScan b )
 {
 	// The decoder never saw the input, so it derives its control signal from its
@@ -151,5 +160,6 @@ vec3 ferricDecode( vec3 y, FerricScan b )
 	vec3 z = y - ( g2 / ( 1.0 + g2 ) ) * ( y - mix( b.lpWide, b.lpNarrow, ferricSlide( 1, lvl2 ) ) );
 	return z - ( g1 / ( 1.0 + g1 ) ) * ( z - mix( b.lpWide, b.lpNarrow, ferricSlide( 0, lvlX ) ) );
 }
+//= end mirrored
 )";
 } // namespace ferric::shaders

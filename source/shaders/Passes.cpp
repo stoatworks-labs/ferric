@@ -18,6 +18,7 @@ constexpr const char* kHeader = "#version 410 core\nin vec2 uv;\nout vec4 fragCo
 // an unpadded texture it can sample anywhere in.
 //---------------------------------------------------------------------------
 constexpr const char* kEncodeMain = R"(
+//= mirrored in CpuPasses.cpp -- encodeRows
 uniform sampler2D InputTexture;
 uniform vec2 InputMaxUV;
 uniform int DoEncode;
@@ -32,12 +33,14 @@ void main()
 
 	fragColor = vec4( c, src.a );
 }
+//= end mirrored
 )";
 
 //---------------------------------------------------------------------------
 // Pass two. The medium.
 //---------------------------------------------------------------------------
 constexpr const char* kTapeMain = R"(
+//= mirrored in CpuPasses.cpp -- fetch, wear, hash2 and tapeRows
 uniform sampler2D TapeTexture;   // pass one's buffer: no padding, MaxUV is 1
 
 uniform float TbeAmount;         // peak displacement, fraction of picture width
@@ -151,12 +154,14 @@ void main()
 
 	fragColor = vec4( c, alpha );
 }
+//= end mirrored
 )";
 
 //---------------------------------------------------------------------------
 // Pass three. Decode, mix, overlay.
 //---------------------------------------------------------------------------
 constexpr const char* kDecodeMain = R"(
+//= mirrored in CpuPasses.cpp -- decodeRows
 uniform sampler2D TapeTexture;   // pass two's buffer: no padding
 uniform sampler2D InputTexture;  // the host's original, for the dry side of Mix
 uniform vec2 InputMaxUV;
@@ -189,6 +194,7 @@ void main()
 
 	fragColor = vec4( result, alpha );
 }
+//= end mirrored
 )";
 } // namespace
 
@@ -202,12 +208,15 @@ void main()
     many cycles fit rather than nudging until it feels right.
 
     Underneath it are the five numbers the audio drive produces and a
-    seven-segment readout of the weighted figure. There is no font here -- the
+    seven-segment readout of the weighted figure. (In the OpenFX build, which
+    has no audio, the meters always read zero; the plot and the readout are the
+    same.) There is no font here -- the
     fleet's text-capable plugins carry a glyph atlas and this one has no other
     reason to -- so the readout is seven rectangles per digit and reads
     `D.DD`, clamped at 9.99.
 */
 const char* const kTraceFunctions = R"(
+//= mirrored in CpuPasses.cpp -- rect, digit, meter and trace
 uniform float TraceBass;
 uniform float TraceMid;
 uniform float TraceHigh;
@@ -352,6 +361,7 @@ vec4 ferricTrace( vec2 guv )
 
 	return vec4( col, a );
 }
+//= end mirrored
 )";
 
 std::string EncodeFragment()

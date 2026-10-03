@@ -51,6 +51,12 @@ constexpr double kNoiseWrap = 65536.0;
 /// out there too rather than folded, so that both sides round it identically.
 constexpr float kRevMean = 0.2255859375f;
 constexpr float kRevNorm = 1.0f / 0.7744140625f;
+} // namespace
+
+// Out of the anonymous namespace on purpose: `hashU` and `valueNoise` are also
+// what the CPU mirror of the tape pass indexes the hiss and the dropouts with
+// (CpuPasses.cpp), exactly as Passes.cpp reuses ferricHashU and
+// ferricValueNoise from this block's GLSL twin. One copy on each side.
 
 //= mirrored in shaders/Tbe.cpp -- integer hash, value noise and fbm
 //
@@ -72,7 +78,7 @@ uint32_t hashU( uint32_t v )
 	return ( w >> 22 ) ^ w;
 }
 
-float hashF( int i )
+static float hashF( int i )
 {
 	// Biased into positive territory before the cast because a scrub backwards
 	// gives a negative tape time, and that is a thing operators do constantly.
@@ -94,7 +100,7 @@ float valueNoise( float x )
 }
 
 /// Three octaves of it, normalised to -1..1.
-float fbm( float x )
+static float fbm( float x )
 {
 	return ( 0.5f * valueNoise( x )
 	         + 0.25f * valueNoise( x * 2.03f + 11.1f )
@@ -103,6 +109,8 @@ float fbm( float x )
 }
 //= end mirrored
 
+namespace
+{
 /// The machines. Multipliers over the operator's controls, never replacements
 /// for them -- see Transport.h.
 constexpr MachineProfile kMachines[ kMachineCount ] = {

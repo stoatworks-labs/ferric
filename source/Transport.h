@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 namespace ferric
 {
 /**
@@ -64,15 +66,19 @@ namespace ferric
     -------------------------------------------------------------- the mirror
 
     `error()` is evaluated per pixel, so the GPU has to have it -- but the
-    harness, the weighted-percentage readout and (later) the OFX build need the
-    C++. The arithmetic is therefore duplicated in `shaders/Tbe.cpp`, and every
+    harness, the weighted-percentage readout and the OpenFX build need the C++.
+    The arithmetic is therefore duplicated in `shaders/Tbe.cpp`, and every
     duplicated block is marked `//= mirrored` in both files. `frtest --tbe`
     renders the GPU's answer into a probe target and compares it against this
     file pixel for pixel; the probe shader is assembled from the *same string*
     the render pass uses, so the test checks the real code and not a lookalike.
 
-    Nothing else in this repo is mirrored. The weighting curve, the machine
-    table and every control curve exist once, in C++.
+    The OpenFX build calls `error()` and `pictureTapeOffset()` from this file
+    per pixel -- it is the CPU side of this mirror, not a third copy. What it
+    mirrors on top is the rest of the per-pixel stage, in `CpuPasses.cpp`.
+
+    The weighting curve, the machine table and every control curve exist once,
+    in C++.
 
     ---------------------------------------------- why there is no absolute time
 
@@ -224,6 +230,21 @@ Error error( const Settings& s, const Phase& p, float dt );
 ///
 //= mirrored in shaders/Tbe.cpp
 float pictureTapeOffset( const Settings& s, float u, float v );
+
+/// The integer hash and the smooth value noise underneath scrape and drift.
+///
+/// Public because the tape pass indexes its hiss and its dropouts with the same
+/// two functions (`ferricHashU` and `ferricValueNoise` on the GPU), so the CPU
+/// mirror of that pass in `CpuPasses.cpp` calls these rather than carrying a
+/// third copy of a hash that has to be bit-exact on both sides.
+///
+//= mirrored in shaders/Tbe.cpp
+uint32_t hashU( uint32_t v );
+
+/// Smooth 1-D value noise, -1..1. See `hashU`.
+///
+//= mirrored in shaders/Tbe.cpp
+float valueNoise( float x );
 
 /// The DIN 45507 / IEC 386 weighting curve, as a linear gain at a frequency in
 /// Hz.

@@ -40,16 +40,6 @@ constexpr int kClockVotes = 4;
 /// flinching after every hiccup.
 constexpr double kMaxFrameDelta = 0.1;
 
-/// Dropout blocks across one scanline. Twenty-four makes the shortest dropout
-/// about four percent of the picture wide, which is roughly what a real one
-/// looks like; more and they read as speckle rather than as loss of contact.
-constexpr float kDropBlocks = 24.0f;
-
-/// Where the hiss and dropout phases wrap. Same reasoning as the transport's
-/// noise wrap: far enough apart that the seam is uncorrelated with what came
-/// before it, near enough that a float still separates adjacent pixels.
-constexpr double kPhaseWrap = 65536.0;
-
 /// Wall clock, for hosts that never call SetTime. Steady rather than system, so
 /// it cannot go backwards when the machine's clock is corrected mid-show.
 double wallSeconds()
@@ -68,10 +58,6 @@ std::string glStringOrUnknown( GLenum name )
 	return value ? reinterpret_cast< const char* >( value ) : "unknown";
 }
 
-double wrapPhase( double v )
-{
-	return v - kPhaseWrap * std::floor( v / kPhaseWrap );
-}
 } // namespace
 
 Ferric::Ferric()
@@ -454,17 +440,16 @@ FFResult Ferric::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 
 	//The hiss advances along the tape with the clock, wrapped, for the reason
 	//given in Ferric.h. Integrated rather than derived from `now` so that a
-	//host stall does not jump it.
+	//host stall does not jump it. The RATE lives in Controls.cpp, because the
+	//OpenFX build -- which has no previous frame to integrate from -- multiplies
+	//the same rate by the frame's time instead.
 	if( lastHostTime >= 0.0 )
 	{
 		const double delta = std::clamp( now - lastHostTime, 0.0, kMaxFrameDelta );
 
-		//Scan samples per second: lines per second times pixels per line.
-		const double linesPerSecond = static_cast< double >( frameH )
-		                              / std::max( 1e-4, static_cast< double >( tset.secondsPerPicture ) );
-		hissPhase = wrapPhase( hissPhase + delta * linesPerSecond * frameWf
-		                       / std::max( 0.5, static_cast< double >( renderOut.tape.hissWidth ) ) );
-		dropPhase = wrapPhase( dropPhase + delta * linesPerSecond * 0.01 );
+		const controls::TapeRates rates = controls::tapeRates( renderOut, frameW, frameH );
+		hissPhase = controls::wrapTapePhase( hissPhase + delta * rates.hiss );
+		dropPhase = controls::wrapTapePhase( dropPhase + delta * rates.dropouts );
 	}
 
 	if( ++clockFrames == 60 )
@@ -582,7 +567,7 @@ FFResult Ferric::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 		tapeShader.Set( "HissWidth", renderOut.tape.hissWidth );
 		tapeShader.Set( "HissPhase", static_cast< float >( hissPhase ) );
 		tapeShader.Set( "DropoutP", renderOut.tape.dropouts );
-		tapeShader.Set( "DropBlocks", kDropBlocks );
+		tapeShader.Set( "DropBlocks", controls::kDropBlocks );
 		tapeShader.Set( "DropPhase", static_cast< float >( dropPhase ) );
 		tapeShader.Set( "HeadWear", renderOut.tape.headWear );
 		tapeShader.Set( "TexelX", 1.0f / frameWf );

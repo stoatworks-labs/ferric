@@ -43,6 +43,48 @@ endif()
 
 option(FERRIC_BUILD_TOOLS "Build the offline render and measurement harness" ON)
 
+# The FFGL plugin, the FFGL SDK submodule and GLEW are one dependency group, and
+# the OpenFX plugin belongs to none of it. Turning this OFF builds the OFX plugin
+# alone, with no GL loader anywhere in the configure -- which is what the Linux
+# job does, because the FFGL SDK has no Linux path and its own
+# find_package(GLEW REQUIRED) would otherwise fail at CONFIGURE time on a
+# machine building something that never calls GL.
+option(FERRIC_BUILD_FFGL "Build the FFGL plugin (needs the FFGL SDK and, off macOS, GLEW)" ON)
+
+# ---------------------------------------------------------------------------
+# The parts with no GL and no host in them at all: the transport and its error
+# signal, the compander, the reaction, every control curve and the preset table.
+#
+# A separate library from the FFGL core because every build needs it and only
+# one of them has a GL context. Splitting it is what lets the OFX build link the
+# SAME arithmetic rather than a second transcription of it.
+# ---------------------------------------------------------------------------
+add_library(ferric_dsp OBJECT
+    source/Transport.h
+    source/Transport.cpp
+    source/Compander.h
+    source/Compander.cpp
+    source/Drive.h
+    source/Drive.cpp
+    source/Controls.h
+    source/Controls.cpp
+    source/Presets.h
+)
+target_include_directories(ferric_dsp PUBLIC source)
+set_target_properties(ferric_dsp PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+# The CPU mirror of the three GLSL passes. Its own library because the FFGL
+# bundle has no use for it -- the GPU does that work there -- while the OpenFX
+# plugin renders with it and the harness needs it to hold it against the GPU.
+add_library(ferric_cpu OBJECT
+    source/CpuPasses.h
+    source/CpuPasses.cpp
+)
+target_link_libraries(ferric_cpu PUBLIC ferric_dsp)
+set_target_properties(ferric_cpu PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+if(FERRIC_BUILD_FFGL)
+
 # ---------------------------------------------------------------------------
 # The Resolume FFGL SDK, as a git submodule pinned to b1afaf9 -- the rev the
 # rest of the fleet pins. See AGENTS.md for what is wrong with it.
@@ -67,17 +109,8 @@ add_subdirectory(external/ffgl EXCLUDE_FROM_ALL)
 add_library(ferric_core OBJECT
     source/Diag.h
     source/Diag.cpp
-    source/Transport.h
-    source/Transport.cpp
-    source/Compander.h
-    source/Compander.cpp
-    source/Drive.h
-    source/Drive.cpp
-    source/Controls.h
-    source/Controls.cpp
     source/PassBuffer.h
     source/PassBuffer.cpp
-    source/Presets.h
     source/Shaders.h
     source/shaders/Vertex.cpp
     source/shaders/Tbe.cpp
@@ -88,7 +121,7 @@ add_library(ferric_core OBJECT
 )
 
 target_include_directories(ferric_core PUBLIC source)
-target_link_libraries(ferric_core PUBLIC ffgl::sdk)
+target_link_libraries(ferric_core PUBLIC ffgl::sdk ferric_dsp)
 target_compile_definitions(ferric_core PUBLIC FERRIC_VERSION="${PROJECT_VERSION}")
 set_target_properties(ferric_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
@@ -110,7 +143,12 @@ endif()
 # the core library so the harness does not carry the registration.
 # ---------------------------------------------------------------------------
 add_library(FerricPlugin MODULE source/PluginEntry.cpp)
-target_link_libraries(FerricPlugin PRIVATE ferric_core)
+# ferric_dsp is named again here, and on every other final target, because an
+# OBJECT library's objects do NOT travel transitively through a second OBJECT
+# library. ferric_core linking it gives this target the include paths and
+# nothing to link, and the failure is a pile of undefined symbols at the very
+# last step of an otherwise clean build.
+target_link_libraries(FerricPlugin PRIVATE ferric_core ferric_dsp)
 
 if(APPLE)
     set_target_properties(FerricPlugin PROPERTIES
@@ -142,7 +180,7 @@ if(FERRIC_BUILD_TOOLS AND APPLE)
     add_executable(frtest tools/frtest/main.cpp)
     # zlib ships with the OS, which is why the PNG writer is fifty lines here
     # rather than a vendored dependency.
-    target_link_libraries(frtest PRIVATE ferric_core z
+    target_link_libraries(frtest PRIVATE ferric_core ferric_dsp ferric_cpu z
         "-framework OpenGL"
         "-framework AppKit"
     )
@@ -159,24 +197,97 @@ elseif(APPLE)
         CACHE PATH "" FORCE)
 endif()
 
+endif()  # FERRIC_BUILD_FFGL
+
+# ---------------------------------------------------------------------------
+# The OpenFX build, for Resolve/Nuke/Natron/Vegas. CPU render against the
+# vendored OFX SDK subset under external/openfx (C headers + the official C++
+# Support library, BSD-3).
+#
+# ferric_dsp links straight in, so the error signal, the compander's gain law
+# and stage table, the reaction arithmetic and every control curve are the same
+# code as the FFGL build. Drive.cpp comes too even though OFX has neither beat
+# information nor an FFT: the plugin fills a zeroed drive::Input, gets scale 1
+# and no lurch, and renders the manual transport through the same arithmetic
+# rather than a second reduced copy. Only the per-pixel stage is written twice
+# -- CpuPasses.cpp against the GLSL -- and `frtest --cpu` holds the two together.
+# ---------------------------------------------------------------------------
+option(BUILD_OFX "Build the OpenFX plugin" ON)
+
+if(BUILD_OFX)
+    set(OFX_SDK "${CMAKE_CURRENT_SOURCE_DIR}/external/openfx")
+
+    add_library(FerricOFX MODULE
+        source/ofx/FerricOFX.cpp
+        ${OFX_SDK}/Support/Library/ofxsCore.cpp
+        ${OFX_SDK}/Support/Library/ofxsImageEffect.cpp
+        ${OFX_SDK}/Support/Library/ofxsInteract.cpp
+        ${OFX_SDK}/Support/Library/ofxsLog.cpp
+        ${OFX_SDK}/Support/Library/ofxsMultiThread.cpp
+        ${OFX_SDK}/Support/Library/ofxsParams.cpp
+        ${OFX_SDK}/Support/Library/ofxsProperty.cpp
+        ${OFX_SDK}/Support/Library/ofxsPropertyValidation.cpp
+    )
+    # PRIVATE on an OBJECT library gives both the objects and the usage
+    # requirements -- and both libraries are named, because OBJECT libraries'
+    # objects do not travel transitively. `$<TARGET_OBJECTS:...>` would give
+    # the objects alone
+    # -- no include directories, no compile definitions -- and the failure is
+    # platform-specific enough to cost a day.
+    target_link_libraries(FerricOFX PRIVATE ferric_cpu ferric_dsp)
+    target_include_directories(FerricOFX PRIVATE
+        source
+        "${OFX_SDK}/include"
+        "${OFX_SDK}/Support/include"
+    )
+    target_compile_definitions(FerricOFX PRIVATE
+        FERRIC_VERSION="${PROJECT_VERSION}"
+        PLUGIN_VERSION_MAJOR=${PROJECT_VERSION_MAJOR}
+        PLUGIN_VERSION_MINOR=${PROJECT_VERSION_MINOR}
+    )
+
+    # Threads, explicitly. The OFX Support library's multi-thread suite calls
+    # pthread_create, and on Rocky 8 -- glibc 2.28, the floor Resolve supports --
+    # that still lives in libpthread; libpthread was only folded into libc in
+    # glibc 2.34. Leave it out and the plugin compiles, links, passes a symbol
+    # check and a glibc-version check, and then fails at dlopen with "undefined
+    # symbol: pthread_create". macOS and Windows never show it.
+    find_package(Threads REQUIRED)
+    target_link_libraries(FerricOFX PRIVATE Threads::Threads)
+
+    set(OFX_BUNDLE_DIR "${CMAKE_BINARY_DIR}/Ferric.ofx.bundle")
+    set_target_properties(FerricOFX PROPERTIES
+        PREFIX ""
+        SUFFIX ".ofx"
+        OUTPUT_NAME "Ferric"
+        LIBRARY_OUTPUT_DIRECTORY "${OFX_BUNDLE_DIR}/Contents/MacOS"
+    )
+    if(APPLE)
+        # Universal like the FFGL bundle, through the same CMAKE_OSX_ARCHITECTURES
+        # set at the top of this file -- Resolve ships for both architectures.
+        set(OFX_BUNDLE_IDENTIFIER "com.stoatworks.ferric.ofx")
+        configure_file(cmake/InfoOFX.plist.in
+            "${OFX_BUNDLE_DIR}/Contents/Info.plist" @ONLY)
+    elseif(WIN32)
+        set_target_properties(FerricOFX PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY "${OFX_BUNDLE_DIR}/Contents/Win64"
+            RUNTIME_OUTPUT_DIRECTORY "${OFX_BUNDLE_DIR}/Contents/Win64"
+            LIBRARY_OUTPUT_DIRECTORY_RELEASE "${OFX_BUNDLE_DIR}/Contents/Win64"
+            RUNTIME_OUTPUT_DIRECTORY_RELEASE "${OFX_BUNDLE_DIR}/Contents/Win64"
+            # MSVC's .exp/.lib for this target; its default directory collides
+            # with the FFGL target's, which shares the output base name, and a
+            # parallel build then races on the file (LNK1104).
+            ARCHIVE_OUTPUT_DIRECTORY "${OFX_BUNDLE_DIR}/importlib"
+            ARCHIVE_OUTPUT_DIRECTORY_RELEASE "${OFX_BUNDLE_DIR}/importlib")
+    else()
+        set_target_properties(FerricOFX PROPERTIES
+            LIBRARY_OUTPUT_DIRECTORY "${OFX_BUNDLE_DIR}/Contents/Linux-x86-64")
+    endif()
+endif()
+
+if(FERRIC_BUILD_FFGL)
 install(TARGETS FerricPlugin
     LIBRARY DESTINATION "."
     BUNDLE  DESTINATION "."
 )
-
-# ---------------------------------------------------------------------------
-# The OpenFX build is NOT here yet, deliberately.
-#
-# Everything it needs is already in place: Transport.cpp, Compander.cpp,
-# Controls.cpp and Drive.cpp have no GL and no host in them, so the OFX plugin
-# links them straight from source the way the rest of the fleet does, and only
-# the per-pixel stage gets mirrored on the CPU. Drive.cpp links in too even
-# though OFX has neither beat information nor an FFT -- it fills a zeroed
-# drive::Input, gets scale 1 and no lurch, and renders the manual transport
-# through the same arithmetic rather than carrying a second reduced copy.
-#
-# Adding it means: source/ofx/FerricOFX.cpp, the vendored OFX SDK subset under
-# external/openfx, cmake/InfoOFX.plist.in -- take flipbook's, which is
-# parameterised on @PROJECT_NAME@; downpour's hardcodes CFBundleExecutable and
-# codesign then fails at release time with a message that mentions no plist.
-# ---------------------------------------------------------------------------
+endif()  # FERRIC_BUILD_FFGL

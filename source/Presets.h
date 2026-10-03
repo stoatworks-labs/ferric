@@ -5,9 +5,18 @@ namespace ferric
 /**
     Factory presets, in the host-facing 0..1 space.
 
-    One table, host-agnostic, so the FFGL build and the OpenFX build that
-    follows it cannot disagree about what a preset means. Element 0 of the
-    dropdown is always "Custom" and is NOT in this table.
+    One table, host-agnostic, so the FFGL build and the OpenFX build cannot
+    disagree about what a preset means. Element 0 of the dropdown is always
+    "Custom" and is NOT in this table.
+
+    ⚠️ The OpenFX menu is this table FILTERED: a preset that sets any reactive
+    depth (Beat, Level or Band) is left out of it, because OpenFX has no audio
+    and the preset would render as a different, quieter picture under the same
+    name. Today that is Beat Slip and Breathing. The filter is in
+    `ofx/FerricOFX.cpp` and reads the table, so a reactive preset added here
+    stays Resolume-only without anyone remembering to say so -- but it also
+    means the OpenFX menu's indices are not this table's, so append, never
+    insert, or a saved OpenFX project's choice lands on a different preset.
 
     ---------------------------------------- a preset is an OVERRIDE, not a write
 

@@ -19,11 +19,12 @@ namespace ferric
     here therefore lives in 0..1 and is converted on the way through, which is
     this file.
 
-    The second reason arrives with the OpenFX build: both hosts will expose the
-    same 0..1 controls and the same factory presets, so a conversion living in
-    each host's glue would be two copies of every curve and a preset would mean
+    The second reason is the OpenFX build: both hosts expose the same 0..1
+    controls and the same factory presets, so a conversion living in each
+    host's glue would be two copies of every curve and a preset would mean
     something slightly different in Resolume and in Resolve. Both fill a
-    `HostValues` and ask here.
+    `HostValues` and ask here -- the OpenFX build leaving the Reaction fields at
+    their defaults, because it has no audio to react to.
 
     ------------------------------------------------------------- the curves
 
@@ -167,6 +168,42 @@ Render render( const HostValues& host, int lines, const drive::Output& driveOut 
 /// Exponential conversion, exposed because the harness checks the ends and the
 /// midpoint of every rate control against it.
 float expRange( float t, float lo, float hi );
+
+//---------------------------------------------------------------------------
+// The tape's own clock: how the hiss and the dropouts move along it.
+//
+// Here rather than in either host's glue because the two builds keep that clock
+// differently and must not disagree about its RATE. The FFGL build integrates
+// frame deltas -- clamped, so a host stall does not jump the grain -- and the
+// OpenFX build, which renders frames out of order and alone, multiplies the
+// same rate by the frame's time. Either way the rate comes from here.
+//---------------------------------------------------------------------------
+
+/// Dropout blocks across one scanline. Twenty-four makes the shortest dropout
+/// about four percent of the picture wide, which is roughly what a real one
+/// looks like; more and they read as speckle rather than as loss of contact.
+constexpr float kDropBlocks = 24.0f;
+
+/// How far the hiss and the dropouts advance per second of clock.
+struct TapeRates
+{
+	/// Hiss noise coordinates per second: lines per second times pixels per
+	/// line, over the hiss's correlation length.
+	double hiss = 0.0;
+
+	/// Dropout blocks per second.
+	double dropouts = 0.0;
+};
+
+/// The rates for a render `width` x `height` pixels. `height` is the scanline
+/// count, as everywhere else here.
+TapeRates tapeRates( const Render& render, int width, int height );
+
+/// Wrap a hiss or dropout phase, in double, before anything narrows it to a
+/// float. Far enough apart that the seam is uncorrelated with what came before
+/// it, near enough that a float still separates adjacent pixels -- the same
+/// reasoning as the transport's noise wrap. See Transport.h.
+double wrapTapePhase( double phase );
 
 } // namespace controls
 } // namespace ferric

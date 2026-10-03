@@ -36,9 +36,11 @@ namespace ferric
 
     ---------------------------------------------------------------- FFGL only
 
-    Beat information and the FFT buffer are FFGL features. When the OpenFX build
-    lands it will fill a zeroed `Input` and get the manual transport -- the same
-    code, the same arithmetic, no second reduced implementation to drift.
+    Beat information and the FFT buffer are FFGL features. The OpenFX build
+    fills a zeroed `Input` and gets the manual transport -- the same code, the
+    same arithmetic, no second reduced implementation to drift. See
+    `cpu::frameAt` in CpuPasses.h, which also puts every Reaction control back
+    to its neutral default, because OpenFX has no parameters for them.
 */
 namespace drive
 {

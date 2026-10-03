@@ -122,6 +122,25 @@ drive::Settings driveSettings( const HostValues& host )
 	return s;
 }
 
+TapeRates tapeRates( const Render& r, int width, int height )
+{
+	// Scan samples per second: lines per second times pixels per line.
+	const double linesPerSecond = static_cast< double >( std::max( 1, height ) )
+	                              / std::max( 1e-4, static_cast< double >( r.transport.secondsPerPicture ) );
+
+	TapeRates rates;
+	rates.hiss = linesPerSecond * static_cast< double >( std::max( 1, width ) )
+	             / std::max( 0.5, static_cast< double >( r.tape.hissWidth ) );
+	rates.dropouts = linesPerSecond * 0.01;
+	return rates;
+}
+
+double wrapTapePhase( double phase )
+{
+	constexpr double kWrap = 65536.0;
+	return phase - kWrap * std::floor( phase / kWrap );
+}
+
 Render render( const HostValues& host, int lines, const drive::Output& driveOut )
 {
 	Render r;

@@ -26,9 +26,28 @@
 #     was set after the first target existed. The build log calls that a
 #     success. Only `lipo` knows.
 #
+# Both apply to the OpenFX bundle exactly as to the FFGL one, so both bundles get
+# both checks.
+#
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
+
+# resolume-ofx-bridge, for ffgltest and ofxprobe. It sits beside this repo's
+# checkout -- and from a git worktree `..` is the worktrees folder, not
+# Projects/resolume, so the main checkout is found through git's common dir as
+# well. FERRIC_BRIDGE overrides both.
+BRIDGE="${FERRIC_BRIDGE:-}"
+if [ -z "$BRIDGE" ]; then
+    for candidate in "../resolume-ofx-bridge" \
+                     "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)")/../resolume-ofx-bridge"; do
+        if [ -d "$candidate/build" ]; then
+            BRIDGE="$candidate"
+            break
+        fi
+    done
+fi
+BRIDGE="${BRIDGE:-../resolume-ofx-bridge}"
 
 PASS=0
 FAIL=0
@@ -261,6 +280,56 @@ fi
 rm -rf "$SIGDIR"
 
 # ---------------------------------------------------------------------------
+head_ "The OpenFX bundle"
+# ---------------------------------------------------------------------------
+# The same four failures as the FFGL bundle, and the plist one is the reason
+# this section exists: cmake/InfoOFX.plist.in is copied from repo to repo, and a
+# CFBundleExecutable naming the donor's binary passes the build, lipo, nm and a
+# probe render, then fails codesign after the tag with a message that mentions
+# no plist.
+OFX_BUNDLE="$BUILD/Ferric.ofx.bundle"
+OFX_BIN="$OFX_BUNDLE/Contents/MacOS/Ferric.ofx"
+
+if [ -f "$OFX_BIN" ]; then
+    ok "the OpenFX binary is where the bundle says it is"
+else
+    bad "no OpenFX binary at $OFX_BIN"
+fi
+
+ofx_archs=$(lipo -archs "$OFX_BIN" 2>/dev/null)
+if [ "$ofx_archs" = "x86_64 arm64" ] || [ "$ofx_archs" = "arm64 x86_64" ]; then
+    ok "OpenFX universal ($ofx_archs)"
+else
+    bad "OpenFX NOT universal -- lipo says '$ofx_archs'"
+fi
+
+# Captured, then matched -- see the grep -q note above.
+ofx_symbols=$(nm -gU "$OFX_BIN" 2>/dev/null)
+case "$ofx_symbols" in
+    *_OfxGetPlugin*) ok "exports OfxGetPlugin" ;;
+    *)               bad "does NOT export OfxGetPlugin -- no OpenFX host will see it" ;;
+esac
+
+ofx_declared=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$OFX_BUNDLE/Contents/Info.plist" 2>/dev/null)
+ofx_ident=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$OFX_BUNDLE/Contents/Info.plist" 2>/dev/null)
+if [ "$ofx_declared" = "Ferric.ofx" ] && [ "$ofx_ident" = "com.stoatworks.ferric.ofx" ]; then
+    ok "OpenFX plist names Ferric.ofx, identifier $ofx_ident"
+else
+    bad "OpenFX plist says executable '$ofx_declared', identifier '$ofx_ident'"
+fi
+
+# The release job's exact command, against a COPY.
+SIGDIR=$(mktemp -d)
+cp -R "$OFX_BUNDLE" "$SIGDIR/" 2>/dev/null
+if codesign --force --sign - --timestamp=none "$SIGDIR/Ferric.ofx.bundle" >/dev/null 2>&1 \
+   && codesign --verify "$SIGDIR/Ferric.ofx.bundle" >/dev/null 2>&1; then
+    ok "OpenFX bundle signs and verifies ad-hoc"
+else
+    bad "codesign refused the OpenFX bundle -- the release job will fail after the tag"
+fi
+rm -rf "$SIGDIR"
+
+# ---------------------------------------------------------------------------
 head_ "Parameter names"
 # ---------------------------------------------------------------------------
 # ⚠️ FFGL's legacy FF_GET_PARAMETER_NAME gives the host a 16-character buffer
@@ -326,7 +395,7 @@ fi
 # ---------------------------------------------------------------------------
 head_ "The harness"
 # ---------------------------------------------------------------------------
-for check in tbe weighting wf identity roundtrip denoise nr scan drive clock presets echo; do
+for check in tbe weighting wf identity roundtrip denoise nr scan drive clock presets echo cpu; do
     if "$BUILD/frtest" --"$check" >"/tmp/ferric-$check.log" 2>&1; then
         ok "$check"
     else
@@ -362,7 +431,7 @@ head_ "Instantiation through plugMain"
 # text block without overriding it means no real host can instantiate the plugin
 # at all, while every check above passes because they bypass plugMain entirely.
 # It has shipped in this fleet before.
-FFGLTEST="../resolume-ofx-bridge/build/ffgltest"
+FFGLTEST="$BRIDGE/build/ffgltest"
 if [ -x "$FFGLTEST" ]; then
     if "$FFGLTEST" "$BUNDLE" >/tmp/ferric-ffgltest.log 2>&1 \
        && grep -Fc 'instantiated ok' /tmp/ferric-ffgltest.log >/dev/null \
@@ -374,6 +443,50 @@ if [ -x "$FFGLTEST" ]; then
     fi
 else
     skip "ffgltest not built (../resolume-ofx-bridge) -- plugMain is UNVERIFIED"
+fi
+
+# ---------------------------------------------------------------------------
+head_ "The OpenFX plugin in a host"
+# ---------------------------------------------------------------------------
+# ofxprobe loads the built .ofx the way an OpenFX host does -- describe, every
+# context, instance, render -- and is the only thing here that exercises the
+# plugin's marshalling, its parameter wiring and its preset menu rather than the
+# CPU passes underneath them.
+#
+# ⚠️ ofxprobe scans /Library/OFX/Plugins as well as --dir, and the FIRST bundle
+# with a matching identifier wins. An installed Ferric there would be rendered
+# instead of this build, and every number below would describe the wrong
+# binary -- so its presence is a failure, not a note.
+OFXPROBE="$BRIDGE/build/ofxprobe"
+installed=$(grep -l 'com.stoatworks.ferric' /Library/OFX/Plugins/*/Contents/Info.plist 2>/dev/null || true)
+if [ ! -x "$OFXPROBE" ]; then
+    skip "ofxprobe not built (../resolume-ofx-bridge) -- the OpenFX plugin is UNVERIFIED in a host"
+elif [ -n "$installed" ]; then
+    bad "an installed Ferric in /Library/OFX/Plugins would shadow this build in ofxprobe: $installed"
+else
+    probe_out=$("$OFXPROBE" --dir "$BUILD" --render com.stoatworks.ferric --size 640x360 2>&1)
+    case "$probe_out" in
+        *"rendered 640x360"*)
+            changed=$(printf '%s\n' "$probe_out" | grep -o '[0-9]* of [0-9]* bytes differ' || true)
+            case "$changed" in
+                0\ of*|"") bad "the OpenFX plugin renders its input unchanged at defaults" ;;
+                *)         ok "ofxprobe loads and renders the OpenFX plugin ($changed)" ;;
+            esac ;;
+        *)
+            bad "ofxprobe could not render the OpenFX plugin"
+            printf '%s\n' "$probe_out" | tail -8 | sed 's/^/        /' ;;
+    esac
+
+    # And it must render what the FFGL build renders. tools/ofxcheck.py puts
+    # ofxprobe's own input through both, at defaults, at settings that exercise
+    # every stage and at every preset the OpenFX menu offers, with a control
+    # that must fail.
+    if python3 tools/ofxcheck.py --build "$BUILD" --ofxprobe "$OFXPROBE" >/tmp/ferric-ofxcheck.log 2>&1; then
+        ok "the OpenFX plugin matches the FFGL plugin ($(grep -o 'PASS.*' /tmp/ferric-ofxcheck.log))"
+    else
+        bad "the OpenFX plugin and the FFGL plugin disagree -- see /tmp/ferric-ofxcheck.log"
+        grep -E 'FAIL|Error|error' /tmp/ferric-ofxcheck.log | head -8 | sed 's/^/        /'
+    fi
 fi
 
 # ---------------------------------------------------------------------------

@@ -49,10 +49,19 @@
     `frtest --tbe` is not checking a copy of the shader that resembles the real
     one, it is checking the real one.
 
-    The machine table is NOT mirrored, and neither is the compander's gain
-    curve. Both arrive as uniforms -- a table has no reason to exist twice, and
+    The machine table is NOT mirrored, and neither is the compander's stage
+    table. Both arrive as uniforms -- a table has no reason to exist twice, and
     a curve that existed twice is a curve a preset could disagree with itself
     about.
+
+    ---------------------------------------------------------- the CPU mirror
+
+    The OpenFX build has no GPU, so the passes in this file -- the tap set,
+    encode, decode, the tape's warp, wear, hiss and dropouts, the mix and the
+    trace -- are written out again in C++ in `CpuPasses.cpp`, block for block,
+    each marked `//= mirrored` on both sides. `frtest --cpu` renders the same
+    frames both ways and compares them, with a control that must fail. Edit a
+    marked block here and edit its twin there.
 
     ------------------------------------------------------- the assembled shaders
 

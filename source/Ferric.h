@@ -157,8 +157,9 @@ public:
 	};
 
 	/// params[] as the shared control struct, so this build and the OpenFX one
-	/// that follows ask the same question of the same code. Public for the
-	/// harness.
+	/// ask the same question of the same code. Public for the harness, which
+	/// hands it to `cpu::frameAt` to render the OpenFX build's frame for the
+	/// same controls.
 	ferric::controls::HostValues hostValues() const;
 
 	/// What the music did on the frame just rendered. Public so the harness can
