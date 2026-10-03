@@ -492,5 +492,40 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "A host with no frame rate (Resolve's Fusion page)"
+# ---------------------------------------------------------------------------
+# ☠️ DaVinci Resolve 21.1's Fusion page gives a plugin NO frame rate -- not on
+# the effect, not on any clip -- and an unguarded read throws out of render as
+# kOfxStatErrMissingHostFeature at every frame. That is what the first build of
+# this port did in a real Resolve. A test host with `--quirks fusion` presents
+# the properties the way Fusion does; under it the plugin must render, and
+# render exactly what a host reporting 24 fps renders, because 24 is the
+# fallback. A probe without the flag skips -- point FERRIC_OFXPROBE at one.
+if [ ! -x "$OFXPROBE" ]; then
+    skip "no ofxprobe -- the Fusion frame-rate fallback is UNVERIFIED"
+else
+    probe_help=$("$OFXPROBE" --help 2>&1)
+    case "$probe_help" in
+        *"--quirks"*)
+            fusion_args=( --no-system-dirs --dir "$BUILD" --render com.stoatworks.ferric --size 320x180
+                          --time 12 --set nrType=2 --set dropouts=0.5 )
+            quirk_out=$("$OFXPROBE" --quirks fusion "${fusion_args[@]}" 2>&1)
+            rate_out=$("$OFXPROBE" --frame-rate 24 "${fusion_args[@]}" 2>&1)
+            quirk_hash=$(printf '%s\n' "$quirk_out" | grep -o 'fnv1a64 [0-9a-f]*' || true)
+            rate_hash=$(printf '%s\n' "$rate_out" | grep -o 'fnv1a64 [0-9a-f]*' || true)
+            if [ -z "$quirk_hash" ]; then
+                bad "fails under --quirks fusion -- a host property is read unguarded"
+                printf '%s\n' "$quirk_out" | grep -E 'failed|status' | head -4 | sed 's/^/        /'
+            elif [ "$quirk_hash" = "$rate_hash" ]; then
+                ok "renders under --quirks fusion, identical to a 24 fps host ($quirk_hash)"
+            else
+                bad "renders under --quirks fusion, but not as a 24 fps host does ($quirk_hash vs $rate_hash)"
+            fi ;;
+        *)
+            skip "this ofxprobe has no --quirks (set FERRIC_OFXPROBE) -- the Fusion frame-rate fallback is UNVERIFIED" ;;
+    esac
+fi
+
+# ---------------------------------------------------------------------------
 printf '\n\033[1m%d ok, %d failed, %d skipped\033[0m\n' "$PASS" "$FAIL" "$SKIP"
 [ "$FAIL" -eq 0 ]

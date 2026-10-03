@@ -30,8 +30,19 @@
 ///
 /// ------------------------------------------------------------- the clock
 ///
-/// OFX time is in FRAMES; seconds are `time / frame rate`. The transport's
-/// phases were already a function of absolute time in both builds. The hiss
+/// OFX time is in FRAMES; seconds are `time / frame rate`.
+///
+/// ☠️ **DaVinci Resolve's Fusion page reports no frame rate at all** -- not on
+/// the effect, not on any clip -- and the Support library turns a missing
+/// property into an exception that leaves `render` as
+/// kOfxStatErrMissingHostFeature, at every frame, with nothing on screen but
+/// "could not be processed". So the rate comes from `frameRate()`, which asks
+/// the output clip, the source clip and the effect, each inside its own
+/// try/catch, and falls back to 24 -- Resolve's default timeline rate. In
+/// Fusion, therefore, the time-based controls assume 24 fps. The same rule
+/// covers the other host properties this file reads: none of them may escape
+/// an action. The transport's phases were already a function of absolute time
+/// in both builds. The hiss
 /// and dropout phases are the one departure: the FFGL build integrates them
 /// over clamped frame deltas so a host stall does not jump the grain, and here
 /// they are `seconds * rate` -- a host that renders frame 500 before frame 4
@@ -98,7 +109,8 @@ constexpr const char* kPluginDescription =
 	"rather than present and doing nothing, and the two presets built on it -- "
 	"Beat Slip and Breathing -- are not in this menu.\n\n"
 	"Every frame is a function of its own time, so any frame renders on its own "
-	"and a scrub lands where it should.\n\n"
+	"and a scrub lands where it should. Fusion reports no frame rate; there, "
+	"time-based controls assume 24 fps.\n\n"
 	"https://stoatworks-labs.com";
 
 // Parameter names are identity: a saved project refers to them. Do not rename.
@@ -124,6 +136,17 @@ constexpr const char* kParamShowTrace   = "showTrace";
 constexpr const char* kParamMix         = "mix";
 
 using namespace ferric;
+
+/// The frame rate when the host will not say. Resolve's default timeline rate,
+/// because Resolve's Fusion page is the host that does not say -- see the file
+/// header. Ferric has no domain reason for any other number: nothing in it is
+/// locked to a video standard's rate.
+constexpr double kFallbackFrameRate = 24.0;
+
+bool usableRate( double fps )
+{
+	return std::isfinite( fps ) && fps > 0.0;
+}
 
 /// The preset table is host-agnostic; this is the OFX binding of it, in
 /// presets::Param order -- the same job as the FFGL build's kPresetParamIDs.
@@ -206,7 +229,19 @@ public:
 	void run()
 	{
 		const unsigned int cpus = std::max( 1u, OFX::MultiThread::getNumCPUs() );
-		multiThread( std::min( cpus, static_cast< unsigned int >( std::max( 1, rows ) ) ) );
+
+		// A host whose thread suite refuses -- some will not spawn from inside
+		// a render they already threaded -- gets the whole frame on this
+		// thread rather than a failed render. Every band is a pure function of
+		// its inputs, so running one again is harmless.
+		try
+		{
+			multiThread( std::min( cpus, static_cast< unsigned int >( std::max( 1, rows ) ) ) );
+		}
+		catch( ... )
+		{
+			multiThreadFunction( 0, 1 );
+		}
 	}
 
 private:
@@ -347,7 +382,15 @@ public:
 	void getRegionsOfInterest( const OFX::RegionsOfInterestArguments& args,
 	                           OFX::RegionOfInterestSetter& rois ) override
 	{
-		rois.setRegionOfInterest( *srcClip, srcClip->getRegionOfDefinition( args.time ) );
+		// A host that cannot answer for the source's extent keeps its own
+		// default region rather than seeing this action fail.
+		try
+		{
+			rois.setRegionOfInterest( *srcClip, srcClip->getRegionOfDefinition( args.time ) );
+		}
+		catch( ... )
+		{
+		}
 	}
 
 	/// Mix at zero is the input exactly, unless the trace is on: the overlay is
@@ -389,18 +432,11 @@ public:
 		// An RGB clip has no alpha to be premultiplied by, and a host that says
 		// "unpremultiplied" about one is describing something that does not
 		// exist. Treating it as premultiplied keeps the round trip an identity.
-		const bool premultiplied = comps != OFX::ePixelComponentRGBA
-		                           || srcClip->getPreMultiplication() != OFX::eImageUnPreMultiplied;
+		const bool premultiplied = comps != OFX::ePixelComponentRGBA || !sourceIsStraight();
 
-		//OFX time is FRAMES. Seconds come from the clip's frame rate, and a
-		//host that reports zero would otherwise divide by it.
-		double fps = dstClip->getFrameRate();
-		if( !( fps > 0.0 ) )
-			fps = srcClip->getFrameRate();
-		if( !( fps > 0.0 ) )
-			fps = 25.0;
-
-		const cpu::Frame frame = cpu::frameAt( hostValuesAt( args.time ), width, height, args.time / fps );
+		//OFX time is FRAMES; seconds are time over the frame rate, from a
+		//helper that never throws. See the file header on Fusion.
+		const cpu::Frame frame = cpu::frameAt( hostValuesAt( args.time ), width, height, args.time / frameRate() );
 
 		const size_t samples = static_cast< size_t >( width ) * static_cast< size_t >( height ) * 4;
 		std::vector< float > input( samples );
@@ -450,13 +486,23 @@ public:
 
 			// The copy IS the preset -- same table as the FFGL build, same 0..1
 			// space. One edit block so undo takes the whole preset back at once.
+			//
+			// Exception-safe on purpose: a host refusing one write must not
+			// leave the guard set -- every later edit would then be ignored --
+			// nor the edit block open.
 			const presets::Preset& p = presets::kPresets[ table ];
 			applyingPreset           = true;
 			beginEditBlock( "Preset" );
-			for( int i = 0; i < presets::kParamCount; ++i )
+			try
 			{
-				if( kPresetParamNames[ i ] != nullptr && differs( kPresetParamNames[ i ], p.values[ i ] ) )
-					set( kPresetParamNames[ i ], p.values[ i ] );
+				for( int i = 0; i < presets::kParamCount; ++i )
+				{
+					if( kPresetParamNames[ i ] != nullptr && differs( kPresetParamNames[ i ], p.values[ i ] ) )
+						set( kPresetParamNames[ i ], p.values[ i ] );
+				}
+			}
+			catch( ... )
+			{
 			}
 			endEditBlock();
 			applyingPreset = false;
@@ -486,7 +532,13 @@ public:
 			if( differs( kPresetParamNames[ i ], p.values[ i ] ) )
 			{
 				applyingPreset = true;
-				preset->setValue( 0 );
+				try
+				{
+					preset->setValue( 0 );
+				}
+				catch( ... )
+				{
+				}
 				applyingPreset = false;
 			}
 			return;
@@ -494,6 +546,64 @@ public:
 	}
 
 private:
+	/// The frame rate, from whichever of the host's answers exists: the output
+	/// clip, then the source clip, then the effect, each read on its own so one
+	/// missing property cannot hide the next. The first positive finite value
+	/// wins; with none, kFallbackFrameRate.
+	///
+	/// ⚠️ Every read is inside its own try/catch, and that is the point. The
+	/// Support library throws on a property the host does not have, and Resolve's
+	/// Fusion page has none of these -- an unguarded read here failed every frame.
+	double frameRate() const
+	{
+		try
+		{
+			const double fps = dstClip->getFrameRate();
+			if( usableRate( fps ) )
+				return fps;
+		}
+		catch( ... )
+		{
+		}
+
+		try
+		{
+			const double fps = srcClip->getFrameRate();
+			if( usableRate( fps ) )
+				return fps;
+		}
+		catch( ... )
+		{
+		}
+
+		try
+		{
+			const double fps = getFrameRate();
+			if( usableRate( fps ) )
+				return fps;
+		}
+		catch( ... )
+		{
+		}
+
+		return kFallbackFrameRate;
+	}
+
+	/// Whether the host says the source is straight (unpremultiplied) alpha. A
+	/// host that does not say is taken to mean premultiplied, which is OFX's
+	/// usual and what an FFGL host always hands over.
+	bool sourceIsStraight() const
+	{
+		try
+		{
+			return srcClip->getPreMultiplication() == OFX::eImageUnPreMultiplied;
+		}
+		catch( ... )
+		{
+			return false;
+		}
+	}
+
 	/// The controls at `time`, as the shared control struct. The Reaction
 	/// fields are left at their defaults; `cpu::frameAt` forces them there
 	/// anyway.
