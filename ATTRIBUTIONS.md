@@ -54,6 +54,16 @@ Linked from the system copy that ships with macOS. Not vendored.
 
 Used only by the offline harness, which writes PNGs so that a check can leave a picture behind. It is why the PNG writer in `tools/frtest` is fifty lines rather than a dependency.
 
+### OpenFX image effect plug-in API
+
+<https://github.com/AcademySoftwareFoundation/openfx>  
+Licence: BSD-3-Clause, see `external/openfx/LICENSE.md`  
+Copyright: OpenFX and contributors to the OpenFX project
+
+Vendored at external/openfx — the C headers and the C++ Support library, the same subset the rest of the fleet's OpenFX ports carry.
+
+The plugin ABI for the DaVinci Resolve, Vegas, Nuke and Natron build of the same effect, so one tape model renders through both host families.
+
 ## What is emulated here, and what is not claimed
 
 The two noise-reduction curves this plugin models are the well-known consumer
