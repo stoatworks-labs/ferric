@@ -10,7 +10,80 @@ Cross-cutting notes that are not specific to this repo live in
 *ferric — the video signal as an analogue tape signal: wow and flutter as a
 time-base error, plus a sliding-band noise-reduction round trip. FFGL effect,
 `FR01`. Built 2026-08-26 and tested the same day in Arena 7.27.1 on macOS and on
-Windows.*
+Windows. OpenFX build (`com.stoatworks.ferric`) added 2026-10-03, never yet
+opened in Resolve.*
+
+## The OpenFX port, 2026-10-03
+
+`source/ofx/FerricOFX.cpp`, for Resolve, Vegas, Nuke and Natron, on macOS
+(universal), Windows x64 and Linux x86-64. Built the way the CMakeLists footer
+said it would be: `Transport.cpp`, `Compander.cpp`, `Controls.cpp` and
+`Drive.cpp` link straight in as a new `ferric_dsp` OBJECT library with no GL in
+it, and the per-pixel stage is mirrored on the CPU in `source/CpuPasses.cpp` —
+the tap set, encode, decode, the warp and its line wrap, head wear, hiss,
+dropouts, the mix and the trace overlay, every block marked `//= mirrored` on
+both sides. `FERRIC_BUILD_FFGL=OFF` builds the OpenFX plugin with nothing but a
+compiler, which is what the new `linux-ofx` job does in AlmaLinux 8, with
+`linux-load` dlopening the result on Rocky 8.
+
+**What does not carry over, by decision:**
+
+- **The Reaction group.** No audio, no tempo, no bar phase in OpenFX. Not
+  declared at all. `cpu::frameAt` forces every Reaction field back to its
+  default and runs `drive::compute` on a zeroed input — scale 1, no lurch, no
+  push — which is the same arithmetic as the FFGL build with nothing routed.
+  A fixed-tempo "BPM" parameter was considered for Beat Depth and not added: it
+  would be a new feature with no FFGL counterpart, locked to nothing the editor's
+  music is doing.
+- **Beat Slip and Breathing.** Filtered out of the OpenFX preset menu because
+  each sets a reactive depth; offered here they would be a different, quieter
+  picture under the same name. The filter reads the table, so the OpenFX menu's
+  indices are not the table's — append to `Presets.h`, never insert.
+- **Integrated hiss and dropout phases.** FFGL integrates them over clamped
+  frame deltas so a host stall does not jump the grain. OpenFX renders frames
+  out of order, so they are `seconds × rate`, with the rate moved into
+  `controls::tapeRates` so both builds share it. That is exactly what the FFGL
+  integral equals for a host that starts at zero and never stalls, which is why
+  the comparisons below can be exact. The transport's phases were already a
+  function of absolute time in both.
+
+**Verified, on this Mac (M4 Max), with numbers:**
+
+| what | reading |
+|---|---|
+| `frtest --cpu`: CPU passes vs GPU, 14 cases (defaults, every stage, ten seconds in, 7 presets) | worst **1/255**, **0** pixels over 1/255 |
+| the same, control (Flutter 0.45 on the GPU vs 0.50 on the CPU) | 222/255, 42162 pixels over — fails as it must |
+| a neutral Ferric, CPU vs GPU | bit-exact, 0 pixels differ |
+| `tools/ofxcheck.py`: the built `.ofx` in ofxprobe vs the FFGL plugin, ofxprobe's ramp input, 13 cases incl. every OpenFX preset | worst **1/255**, **0** pixels over 1/255 |
+| the same, control | 251/255 — fails |
+| CPU passes, 1080p, Type C + dropouts | 215 ms on 1 thread, **27.6 ms on 8**, 26.2 on 16 |
+| CPU passes, 4K | 863 ms / 144 ms / 139 ms |
+| one cold render through ofxprobe at 1080p, wall | 60–90 ms (load, marshalling, first touch of three 33 MB buffers) |
+
+The 1/255 is last-bit float disagreement flipping the rounding of pixels that
+sit within it of a code-value boundary. Each stage alone — hiss, warp, wear,
+compander — moves 4–7% of pixels by exactly one, and a neutral Ferric moves
+none. I expected the FFGL build's RGBA16F intermediates to be the cause and
+tested it by rounding the CPU's intermediates to half: no change, so it is not
+that. It is the GPU fusing and reciprocating where the CPU divides, its
+fixed-point bilinear weights, and `sin()`.
+
+**Not verified:** never loaded into Resolve, Vegas, Nuke or Natron on any
+platform. ofxprobe instantiates the Filter context only, at 8-bit RGBA
+premultiplied, at frame 0 — so 16-bit and float depths, RGB clips, straight
+alpha, the General context and non-zero times through a real host are
+unexercised (the CPU passes at non-zero time are covered by `--cpu`'s
+ten-seconds-in case, host-free). The Windows `.ofx` is built in CI and has never
+been loaded by anything; the Linux one is a dlopen and two entry points on
+Rocky 8, not a render.
+
+⚠️ **`tools/verify.sh` had been skipping its plugMain check whenever it ran from
+a git worktree.** It looked for `../resolume-ofx-bridge`, and from
+`.claude/worktrees/<name>` that is the worktrees folder. It now also tries the
+main checkout through `git rev-parse --git-common-dir`, which is where the
+bridge actually sits beside it; `FERRIC_BRIDGE` overrides both. A skip that
+reads "not built" when the tool is built is worth a second look in every repo
+that verifies from worktrees.
 
 ## Released v0.1.0, 2026-08-26
 
@@ -111,11 +184,9 @@ on this evidence, and I would not call it cleared either.
   audio routed.
 - **No NVIDIA or AMD driver has run it.** llvmpipe proves the shader source is
   portable, never that a vendor driver agrees, and nothing about performance.
-- **No OpenFX build.** Deliberately deferred; the core is already host-agnostic
-  and there is a note at the foot of `CMakeLists.txt` saying exactly what adding
-  it involves, including which repo's `InfoOFX.plist.in` to copy (flipbook's,
-  parameterised on `@PROJECT_NAME@` — downpour's hardcodes `CFBundleExecutable`
-  and fails codesign after the tag).
+- **No OpenFX build** at the time — deliberately deferred, with a note at the
+  foot of `CMakeLists.txt` saying what adding it involved. It was added
+  2026-10-03; see [the OpenFX port](#the-openfx-port-2026-10-03) above.
 - **No backend registration.** `source/StoatworksAbout.h` is hand-written and
   says so at the top. Adding the `projects.json` entry publishes a page, so it is
   a deliberate step rather than a side effect of scaffolding — and a sync run

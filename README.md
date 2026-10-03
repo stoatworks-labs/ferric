@@ -3,7 +3,8 @@
 > **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
 > (Anthropic), directed and reviewed by a human author. It has been run in
 > Resolume Arena 7.27.1 on macOS and on Windows — see [Status](#status) for
-> exactly what that does and does not cover.
+> exactly what that does and does not cover. The OpenFX build has only been run
+> under a test host, never in Resolve.
 
 Put the picture on tape.
 
@@ -14,7 +15,9 @@ there; and the consumer sliding-band noise reduction that hid one under the othe
 is there too, with both ends of it under your control — which is where the
 interesting damage lives.
 
-An FFGL effect for **Resolume Arena and Avenue**.
+An FFGL effect for **Resolume Arena and Avenue**, and the same effect as an
+OpenFX plugin for **DaVinci Resolve, Vegas, Nuke and Natron** — see
+[OpenFX](#openfx--resolve-vegas-nuke-natron) for what is and is not the same.
 
 **Video:** [What it does, in 50 seconds](https://www.youtube.com/watch?v=PccB5tL7rsQ)
 
@@ -143,7 +146,50 @@ Clean Deck, Compact Cassette, Chewed Tape, Undecoded, Wrong Deck, Head Clog,
 Ribbons, Beat Slip, Breathing.
 
 Seven leave every reactive depth at zero, so a preset picked with nothing routed
-still behaves. The two that do not have it in their names.
+still behaves. The two that do not have it in their names — and those two are
+Resolume-only, because the OpenFX build has no audio to react to.
+
+## OpenFX — Resolve, Vegas, Nuke, Natron
+
+The same effect also builds as an OpenFX plugin, so it runs in DaVinci Resolve
+(Edit and Color pages, and Fusion), Vegas Pro, Nuke and Natron. It is a CPU
+render of the same three passes: the transport, the compander, every control
+curve and the preset table are the same C++ the Resolume build runs, and the
+per-pixel stage is a line-for-line C++ mirror of the GLSL, tested against it —
+the two agree to within one code value in 8 bits, at defaults, across every
+stage and at every preset the OpenFX menu offers.
+
+Grab the `ferric-ofx-*` zip for your platform from the release and copy
+`Ferric.ofx.bundle` into the standard OpenFX folder, then restart the host:
+
+```
+macOS    /Library/OFX/Plugins/
+Windows  C:\Program Files\Common Files\OFX\Plugins\
+Linux    /usr/OFX/Plugins/
+```
+
+It appears as **Ferric** under **Stoatworks**.
+
+**What is different from the Resolume build, and why:**
+
+- **No Reaction group.** OpenFX gives a plugin no audio and no tempo, so the
+  audio input, Sync, Beat Depth, Beat Decay, Division, Level Depth, Band Depth
+  and Route are not there at all rather than there and dead. What is left is the
+  manual transport, which is what the Resolume build is with nothing routed.
+- **Two fewer presets.** Beat Slip and Breathing are built on the reaction, so
+  they are left out of the OpenFX menu rather than offered as a quieter picture
+  under the same name. The other seven are identical in both builds.
+- **The hiss and the dropouts move with the frame's time.** The Resolume build
+  integrates them over frame deltas so a stalled host does not jump the grain;
+  an OpenFX host renders frames out of order and alone, so here they are
+  `time × rate`. The transport was already a function of time in both. Every
+  frame is therefore a pure function of its own time — scrub anywhere and it
+  renders the same as playing up to it.
+- **Show Trace's meters read zero**, for the same reason as the first point.
+  The plot and the weighted readout are the same.
+- **It costs CPU, not GPU.** About 28 ms a frame at 1080p on 8 threads of an
+  M4 Max with Type C and dropouts running, against 0.3 ms on the GPU in
+  Resolume.
 
 ## Build
 
@@ -157,14 +203,19 @@ cmake --build build
 cmake --install build     # drops the bundle into Resolume's Extra Effects folder
 ```
 
-macOS builds are universal (Apple Silicon + Intel) by default.
+macOS builds are universal (Apple Silicon + Intel) by default. The same build
+produces `build/Ferric.ofx.bundle`; `-DBUILD_OFX=OFF` skips it, and
+`-DFERRIC_BUILD_FFGL=OFF` builds the OpenFX plugin alone with nothing but a
+compiler — no FFGL SDK and no GLEW — which is how the Linux release job builds
+it.
 
 ## Status
 
-**What is verified, and how.** `tools/verify.sh` runs 23 checks against a clean
-universal build. They drive the real plugin class through the real FFGL sequence
-in a headless OpenGL 4.1 core context, and the built bundle is loaded through
-`plugMain` the way a host loads it.
+**What is verified, and how.** `tools/verify.sh` runs 33 checks against a clean
+universal build of both plugins. They drive the real plugin class through the
+real FFGL sequence in a headless OpenGL 4.1 core context, the built bundle is
+loaded through `plugMain` the way a host loads it, and the built OpenFX bundle
+is loaded and rendered by `ofxprobe` (resolume-ofx-bridge's test host).
 
 | check | what it establishes |
 |---|---|
@@ -177,9 +228,13 @@ in a headless OpenGL 4.1 core context, and the built bundle is loaded through
 | `--clock` | a milliseconds host and a seconds host render identical frames |
 | `--drive`, `--echo` | the reaction arithmetic and the factory-preset logic, with no GPU |
 | `tools/sweep.py` | all 27 controls reach the picture |
+| `--cpu` | the OpenFX build's CPU passes match the GPU to **1/255 worst, with not one pixel more than one code value out**, across 14 cases — and a deliberately detuned control misses by 222/255 |
+| `tools/ofxcheck.py` | the built OpenFX bundle, loaded by `ofxprobe`, matches the FFGL plugin from the same input to **1/255 worst** across 13 cases, including every OpenFX preset — control misses by 251/255 |
+| OpenFX bundle | universal, exports `OfxGetPlugin`, plist names its own binary, ad-hoc signs |
 
 Render cost is 0.34 ms/frame at 1080p and 0.70 ms at 4K, with Type C and dropouts
-running, on Apple Silicon.
+running, on Apple Silicon. The OpenFX build's CPU render of the same settings is
+about 28 ms/frame at 1080p on 8 threads (215 ms on one).
 
 ### In Resolume
 
@@ -217,7 +272,15 @@ Two things that only a real host could establish:
 
 **What is still NOT verified.** No operator has dragged a slider — every control
 above was driven over the REST API, so inspector *layout* and feel are unjudged.
-No NVIDIA or AMD driver has run it. There is no OpenFX build, and no release.
+No NVIDIA or AMD driver has run it.
+
+**The OpenFX build has never been loaded into Resolve, Vegas, Nuke or Natron.**
+It has been loaded, described and rendered by `ofxprobe` on macOS only, at
+8-bit RGBA. The Windows and Linux bundles are built in CI; the Linux one is
+`dlopen`ed on Rocky 8 (the distro Resolve supports) by the release workflow, and
+the Windows one has never been loaded by anything. 16-bit and float pixel
+depths, RGB-only clips and straight alpha are handled by the same marshalling
+the fleet's other OpenFX ports use, but no host has exercised them here.
 
 ⚠️ During the Windows session Arena restarted once, at a point I could not
 attribute to Ferric: there were no application crash events, the plugin had

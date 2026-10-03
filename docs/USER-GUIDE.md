@@ -1,7 +1,8 @@
 # Ferric user guide
 
 Ferric puts the picture on tape. It is an FFGL plugin for [Resolume](https://resolume.com) Arena
-and Avenue that treats the video signal the way a cassette deck treats an audio one: an unsteady
+and Avenue — and an OpenFX plugin for DaVinci Resolve, Vegas, Nuke and Natron — that treats the
+video signal the way a cassette deck treats an audio one: an unsteady
 transport drags it past the head so the image leans, waves and tears in time; the oxide adds its
 own hiss and loses contact here and there; and the consumer sliding-band noise reduction that hid
 one under the other is in there too, with **both ends of it under your control** — which is where
@@ -30,7 +31,7 @@ recognises about the format is the two ends disagreeing.**
 the picture — the same shape the image is being torn by — and the readout is weighted wow and
 flutter as a percentage of a line period.*
 
-> **Before you rely on this:** 23 automated checks pass from a clean universal build. The GLSL
+> **Before you rely on this:** 33 automated checks pass from a clean universal build. The GLSL
 > error signal agrees with an independent C++ implementation to 1.9e-05 over 6400 points, with a
 > control case that must disagree; a neutral Ferric returns the picture **bit-exactly**; the
 > compander moves vertical detail by 9.996 rms and horizontal detail by **0.000**, which is the
@@ -42,7 +43,9 @@ flutter as a percentage of a line period.*
 >
 > Still open: **no operator has dragged a slider.** Every control was driven over Resolume's REST
 > API, so the inspector's layout and feel are unjudged. **No NVIDIA or AMD driver has run it.**
-> There is no OpenFX build. None of it has been through a show.
+> The OpenFX build renders the same pictures as the Resolume one to within one code value in 8
+> bits, checked pixel for pixel under a test host — but it **has never been opened in Resolve**,
+> Vegas, Nuke or Natron. None of it has been through a show.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 
@@ -63,6 +66,32 @@ Windows builds are unsigned, but plugin files are not gated the way `.exe` files
 installer trips SmartScreen, once.
 
 Resolume scans the plugin folder at startup. If Ferric is not in the effects list, restart it.
+
+### OpenFX — Resolve, Vegas, Nuke, Natron
+
+Take the `ferric-ofx-*` zip for your platform and copy `Ferric.ofx.bundle` into the standard
+OpenFX folder, then restart the host:
+
+```
+macOS    /Library/OFX/Plugins/
+Windows  C:\Program Files\Common Files\OFX\Plugins\
+Linux    /usr/OFX/Plugins/
+```
+
+It appears as **Ferric** under **Stoatworks**. Everything in this guide applies to it, with four
+differences:
+
+- **There is no Reaction group** — OpenFX gives a plugin no audio and no tempo, so
+  [Making it listen](#making-it-listen) is Resolume-only.
+- **Beat Slip and Breathing are not in its preset menu**, because they are built on the reaction.
+- **Show Trace's meters always read zero**; the plot and the readout are the same.
+- **Every frame is a function of its own time**, so scrubbing lands exactly where playing would.
+  In Resolume the hiss and the dropouts advance with the frames actually rendered, so a stalled
+  host does not make the grain jump; in an editor, which renders frames in any order, they follow
+  the timeline.
+
+The OpenFX build renders on the CPU, so it is far slower than the GPU in Resolume — see
+[Cost](#cost).
 
 ---
 
@@ -153,6 +182,8 @@ still. That asymmetry is the effect rather than a shortcut, and it is measured: 
 
 ## Making it listen
 
+*Resolume only — the OpenFX build has no audio input and no Reaction group.*
+
 **Every reaction control is off by default.** Dropped on a layer with nothing routed, this is an
 ordinary manual tape emulation and behaves like one.
 
@@ -174,7 +205,8 @@ renders clean and a loud passage renders exactly what you dialled in.
 ## Presets
 
 Nine of them, and seven leave every reactive depth at zero so a preset picked with nothing routed
-still behaves. The two that do not have it in their names.
+still behaves. The two that do not have it in their names, and are Resolume-only: the OpenFX menu
+offers the other seven.
 
 **Clean Deck** · **Compact Cassette** · **Chewed Tape** · **Undecoded** · **Wrong Deck** ·
 **Head Clog** · **Ribbons** · **Beat Slip** · **Breathing**
@@ -215,3 +247,6 @@ worth reporting.
 
 Measured on an M4 Max: **0.34 ms/frame at 1080p and 0.70 ms at 4K**, with Type C and dropouts both
 running. The compander is the expensive part and it costs the same whichever type is selected.
+
+The OpenFX build does the same work on the CPU: about **28 ms/frame at 1080p and 140 ms at 4K** on
+8 threads of the same machine, and roughly eight times that on one.

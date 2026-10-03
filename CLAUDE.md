@@ -3,8 +3,10 @@
 The video signal treated as an analogue tape signal: wow, flutter and scrape from
 an unsteady transport, hiss and dropouts from the oxide, and the consumer
 sliding-band noise reduction that hid one under the other. An FFGL effect for
-Resolume Arena/Avenue. C++/GLSL, CMake MODULE → universal `.bundle` (macOS) +
-Windows `.dll`. Public MIT repo.
+Resolume Arena/Avenue, and the same effect as an OpenFX plugin for Resolve,
+Vegas, Nuke and Natron. C++/GLSL, CMake MODULE → universal `.bundle` (macOS) +
+Windows `.dll`, plus `Ferric.ofx.bundle` (macOS universal, Win64, Linux x86-64).
+Public MIT repo.
 
 Read `AGENTS.md` before changing the error signal, the compander, the pass order
 or the clock.
@@ -12,8 +14,13 @@ or the clock.
 ## Commands (CMake)
 - Configure: `cmake -B build -DCMAKE_BUILD_TYPE=Release`
 - Fast dev build: add `-DCMAKE_OSX_ARCHITECTURES=arm64`
-- Build: `cmake --build build`
+- Build: `cmake --build build` (both plugins; `-DBUILD_OFX=OFF` skips OpenFX)
+- OpenFX alone, no FFGL SDK or GLEW (what the Linux job does):
+  `cmake -B build-ofx -DFERRIC_BUILD_FFGL=OFF -DFERRIC_BUILD_TOOLS=OFF`
 - Install to Resolume: `cmake --install build`
+- OpenFX: copy `build/Ferric.ofx.bundle` to `/Library/OFX/Plugins/`
+- Render ofxprobe's input through the FFGL plugin, to compare with an OpenFX
+  render: `./build/frtest --card ramp --frames 1 --silent --out /tmp/gpu.png`
 - Render a frame offline: `./build/frtest --out /tmp/frame.png`
 - The test card on its own: `./build/frtest --scene /tmp/card.png`
 - List parameters, with types, defaults and any at the 16-character limit:
@@ -28,7 +35,7 @@ or the clock.
   must STEP (two keys one frame apart), never ramp.
 
 ## Verify
-- **Everything (23 checks, clean universal build): `tools/verify.sh`**
+- **Everything (33 checks, clean universal build, both plugins): `tools/verify.sh`**
 - The GLSL error signal against `Transport.cpp`: `./build/frtest --tbe`
 - The DIN weighting curve is where this repo claims: `./build/frtest --weighting`
 - The weighted figure responds to the transport: `./build/frtest --wf`
@@ -42,7 +49,10 @@ or the clock.
 - Presets distinct and non-degenerate: `./build/frtest --presets`
 - Presets survive the host's own echo (no GL): `./build/frtest --echo`
 - No dead controls: `python3 tools/sweep.py`
-- Render cost: `./build/frtest --bench`
+- The OpenFX build's CPU passes against the GPU: `./build/frtest --cpu`
+- The built OpenFX bundle in ofxprobe against the FFGL plugin:
+  `python3 tools/ofxcheck.py --build build`
+- Render cost, GPU and the OpenFX build's CPU passes: `./build/frtest --bench`
 
 `--drive`, `--weighting`, `--wf` and `--echo` need **no GL context** and are what
 CI runs; everything else renders and runs locally before a tag.
@@ -68,10 +78,18 @@ CI runs; everything else renders and runs locally before a tag.
 - **The compander is one-dimensional and horizontal.** Tape has one frequency
   axis. `--scan` is the check that keeps it that way, and it is the difference
   between this and a detail compressor.
-- **Two things are mirrored in GLSL and both are marked `//= mirrored` in both
-  files**: the error signal (`Transport.cpp` ↔ `shaders/Tbe.cpp`) and the gain
-  law (`Compander.cpp` ↔ `shaders/Compand.cpp`). The machine table and the stage
-  table are NOT — they arrive as uniforms.
+- **Three things are mirrored and all are marked `//= mirrored` in both
+  files**: the error signal (`Transport.cpp` ↔ `shaders/Tbe.cpp`, `--tbe`), the
+  gain law (`Compander.cpp` ↔ `shaders/Compand.cpp`, `--nr`), and the per-pixel
+  passes the OpenFX build renders with (`CpuPasses.cpp` ↔ `shaders/Passes.cpp`
+  and `shaders/Compand.cpp`, `--cpu`). Edit a marked GLSL block and edit its
+  twin. The machine table and the stage table are NOT mirrored — they arrive as
+  uniforms.
+- **The OpenFX build has no Reaction group.** No audio, no tempo. `cpu::frameAt`
+  runs `Drive.cpp` on a zeroed input (the manual transport), and the OpenFX
+  preset menu leaves out every preset that sets a reactive depth (Beat Slip,
+  Breathing). Its hiss and dropout phases are `time × rate` where FFGL
+  integrates them, because OpenFX renders frames out of order.
 - **A factory preset is an override, not a write.** Resolume does not consume
   value events. See `Presets.h`; `--echo` is the check.
 - **Resolume sends `SetTime` in MILLISECONDS.** The unit is settled by comparing
@@ -93,11 +111,11 @@ CI runs; everything else renders and runs locally before a tag.
 Windows x64 built and tested. All five homes agree: repo, website project page,
 YouTube, both embed links, and the download block. See `docs/NOTES.md`.
 
+**The OpenFX build was added after v0.1.3, on 2026-10-03.** Verified against the
+FFGL plugin in ofxprobe and by `--cpu`; never loaded into Resolve, Vegas, Nuke or
+Natron. `docs/NOTES.md` says exactly what was and was not checked.
+
 ## Not built yet
-- **The OpenFX build.** `Transport.cpp`, `Compander.cpp`, `Controls.cpp` and
-  `Drive.cpp` are already host-agnostic and link straight from source when it
-  lands; only the per-pixel stage needs mirroring on the CPU. See the note at the
-  foot of `CMakeLists.txt`.
 - **The browser demo.** Most video plugins in this fleet ship a hand-written
   WebGL demo at `<slug>-demo.stoatworks-labs.com`, served from `demo/` by the
   repo's own Worker. Ferric has none. Nothing deploys it automatically and

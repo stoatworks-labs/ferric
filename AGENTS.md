@@ -1,8 +1,9 @@
 # ferric — for whoever picks this up next
 
 The video signal treated as an analogue tape signal, as an FFGL 2.1 effect for
-Resolume (`Ferric`, ID **`FR01`**). C++17 + GLSL 4.1, CMake. `CLAUDE.md` is the
-command reference and is not duplicated here; this file is the *why*.
+Resolume (`Ferric`, ID **`FR01`**) and an OpenFX plugin for Resolve, Vegas, Nuke
+and Natron (`com.stoatworks.ferric`). C++17 + GLSL 4.1, CMake. `CLAUDE.md` is
+the command reference and is not duplicated here; this file is the *why*.
 
 ## Two ideas, and why the code is shaped like this
 
@@ -260,6 +261,46 @@ was found modal on that desktop, which is what returned 412 to every subsequent
 edit. Recorded as unattributed rather than as either a pass or a fault — if it
 recurs, that is the thing to chase.
 
+## The OpenFX build, and the rules it lives by
+
+**One model, two renderers.** `ferric_dsp` (Transport, Compander, Drive,
+Controls, the preset table) has no GL and no host in it and links into both
+plugins and the harness. The OpenFX plugin's per-pixel work is
+`source/CpuPasses.cpp`, a C++ mirror of `shaders/Passes.cpp` and the compander
+half of `shaders/Compand.cpp`, block for block, marked `//= mirrored` on both
+sides. **Edit a marked GLSL block and you must edit its twin**; `frtest --cpu`
+renders both and fails when they part, and its control proves it can.
+
+**OpenFX renders frames out of order, alone and concurrently, so nothing may be
+remembered between renders.** Every frame is a function of the input at that
+time, the parameters at that time and the time. That cost exactly one thing:
+the hiss and dropout phases, which FFGL integrates over clamped frame deltas,
+are `seconds × rate` in OpenFX (`cpu::frameAt`). The rate lives in
+`controls::tapeRates` for both, so they cannot drift apart; for a host that
+starts at zero and never stalls the two are the same number, which is why the
+comparisons can be exact.
+
+**No Reaction group in OpenFX, and no pretending.** No audio, no tempo, no bar
+phase. The parameters are not declared; `cpu::frameAt` forces the Reaction
+fields to their defaults and runs `drive::compute` on a zeroed input, which is
+the FFGL build's own arithmetic with nothing routed. Presets that set a reactive
+depth (Beat Slip, Breathing) are filtered out of the OpenFX menu by reading the
+table, so the OpenFX menu's indices are not the table's: **append presets, never
+insert.**
+
+**The agreement is 1/255, and that is a measurement, not a target.** Last-bit
+float differences (GPU fusing and reciprocating, fixed-point bilinear weights,
+`sin()`) flip the rounding of pixels that sit on a code-value boundary. A
+neutral Ferric is bit-exact both ways. Rounding the CPU's intermediates to half,
+to match the GPU's RGBA16F buffers, was tried and changed nothing. If `--cpu`
+ever reports 2/255 or more, something stopped being a mirror; look before
+loosening.
+
+**Tiles are off and the whole frame is read.** The tape pass is a warp, and off
+the end of a line it reads the line next door. Each pass runs over the whole
+frame in bands of rows across the host's threads, with a barrier between passes
+-- the CPU's version of three draws into three buffers.
+
 ## Measured, on Apple Silicon
 
 | what | reading |
@@ -274,6 +315,10 @@ recurs, that is the thing to chase.
 | Type C's advantage over B, hiss 0.6 → 0.15 | −0.76 dB → −3.51 dB |
 | 1080p, Type C + dropouts | 0.34 ms/frame |
 | 4K, Type C + dropouts | 0.70 ms/frame |
+| OpenFX CPU passes vs GPU, 14 cases (`--cpu`) | 1/255 worst, 0 pixels over 1/255 |
+| the `.ofx` in ofxprobe vs the FFGL plugin, 13 cases (`ofxcheck.py`) | 1/255 worst, 0 pixels over 1/255 |
+| OpenFX CPU, 1080p, Type C + dropouts | 215 ms on 1 thread, 27.6 ms on 8 |
+| OpenFX CPU, 4K | 863 ms on 1 thread, 144 ms on 8 |
 
 The two-stage signature is the interesting row: Type C pulls further ahead of
 Type B as the recorded level drops, which is what a second stage an order below
