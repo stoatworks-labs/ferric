@@ -51,7 +51,9 @@ or the clock.
 - No dead controls: `python3 tools/sweep.py`
 - The OpenFX build's CPU passes against the GPU: `./build/frtest --cpu`
 - The built OpenFX bundle in ofxprobe against the FFGL plugin:
-  `python3 tools/ofxcheck.py --build build`
+  `python3 tools/ofxcheck.py --build build` — with a probe that takes `--in`
+  and `--time` (`--ofxprobe PATH`, or `FERRIC_OFXPROBE` for verify.sh) it also
+  compares the test card seconds into the clock; `--depth float` for float
 - Render cost, GPU and the OpenFX build's CPU passes: `./build/frtest --bench`
 
 `--drive`, `--weighting`, `--wf` and `--echo` need **no GL context** and are what

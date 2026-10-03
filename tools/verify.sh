@@ -457,7 +457,9 @@ head_ "The OpenFX plugin in a host"
 # with a matching identifier wins. An installed Ferric there would be rendered
 # instead of this build, and every number below would describe the wrong
 # binary -- so its presence is a failure, not a note.
-OFXPROBE="$BRIDGE/build/ofxprobe"
+# FERRIC_OFXPROBE picks a different probe -- one that takes --in and --time
+# makes ofxcheck compare the test card seconds into the clock as well.
+OFXPROBE="${FERRIC_OFXPROBE:-$BRIDGE/build/ofxprobe}"
 installed=$(grep -l 'com.stoatworks.ferric' /Library/OFX/Plugins/*/Contents/Info.plist 2>/dev/null || true)
 if [ ! -x "$OFXPROBE" ]; then
     skip "ofxprobe not built (../resolume-ofx-bridge) -- the OpenFX plugin is UNVERIFIED in a host"

@@ -45,6 +45,16 @@
 /// runs over the whole frame, split into bands of rows across the host's
 /// threads, with a barrier between passes -- the CPU's version of the FFGL
 /// build's three draws into three buffers.
+///
+/// ------------------------------------------------------- render scale
+///
+/// Not compensated for. The compander's eleven taps, head wear, the hiss
+/// grain and the scanline count are in render pixels, exactly as they are in
+/// Resolume at whatever size the composition runs -- so a host's proxy preview
+/// at half scale looks coarser than the full render. Compensating properly
+/// would mean fractional-pixel taps and a scanline count taken from the
+/// full-size height: a different per-pixel stage from the GLSL this file is
+/// held to, for a difference that only ever shows in a preview.
 
 #include <algorithm>
 #include <cmath>
