@@ -280,6 +280,20 @@ are `seconds × rate` in OpenFX (`cpu::frameAt`). The rate lives in
 starts at zero and never stalls the two are the same number, which is why the
 comparisons can be exact.
 
+**☠️ Fusion reports no frame rate; there, time-based controls assume 24 fps.**
+DaVinci Resolve's Fusion page provides `kOfxImageEffectPropFrameRate` on
+neither the effect nor any clip, and the Support library turns a missing
+property into an exception that fails the action -- found in a real Resolve
+21.1, where every frame came back kOfxStatErrMissingHostFeature. So
+`frameRate()` in FerricOFX.cpp tries the output clip, the source clip and the
+effect, each in its own try/catch, and falls back to 24 (Resolve's default
+timeline rate). The rule is general: **no host property may escape an action.**
+The premultiplication state and the source's region of definition are read the
+same way, the preset copy is exception-safe, and a refused thread suite falls
+back to one thread. Fusion also reports a clip frame range of [0, 0] and omits
+the Unmapped and render-status properties; nothing here reads them, and the
+Support library reads the render-status pair with throwing off.
+
 **No Reaction group in OpenFX, and no pretending.** No audio, no tempo, no bar
 phase. The parameters are not declared; `cpu::frameAt` forces the Reaction
 fields to their defaults and runs `drive::compute` on a zeroed input, which is

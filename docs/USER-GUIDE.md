@@ -31,7 +31,7 @@ recognises about the format is the two ends disagreeing.**
 the picture — the same shape the image is being torn by — and the readout is weighted wow and
 flutter as a percentage of a line period.*
 
-> **Before you rely on this:** 33 automated checks pass from a clean universal build. The GLSL
+> **Before you rely on this:** 34 automated checks pass from a clean universal build. The GLSL
 > error signal agrees with an independent C++ implementation to 1.9e-05 over 6400 points, with a
 > control case that must disagree; a neutral Ferric returns the picture **bit-exactly**; the
 > compander moves vertical detail by 9.996 rms and horizontal detail by **0.000**, which is the
@@ -44,8 +44,9 @@ flutter as a percentage of a line period.*
 > Still open: **no operator has dragged a slider.** Every control was driven over Resolume's REST
 > API, so the inspector's layout and feel are unjudged. **No NVIDIA or AMD driver has run it.**
 > The OpenFX build renders the same pictures as the Resolume one to within one code value in 8
-> bits, checked pixel for pixel under a test host — but it **has never been opened in Resolve**,
-> Vegas, Nuke or Natron. None of it has been through a show.
+> bits, checked pixel for pixel under a test host. It has been tried in **DaVinci Resolve once, in
+> the Fusion page, and failed** there; that is fixed but not yet re-checked in Resolve, and Vegas,
+> Nuke and Natron have never opened it. None of it has been through a show.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 
@@ -78,7 +79,7 @@ Windows  C:\Program Files\Common Files\OFX\Plugins\
 Linux    /usr/OFX/Plugins/
 ```
 
-It appears as **Ferric** under **Stoatworks**. Everything in this guide applies to it, with four
+It appears as **Ferric** under **Stoatworks**. Everything in this guide applies to it, with five
 differences:
 
 - **There is no Reaction group** — OpenFX gives a plugin no audio and no tempo, so
@@ -89,6 +90,9 @@ differences:
   In Resolume the hiss and the dropouts advance with the frames actually rendered, so a stalled
   host does not make the grain jump; in an editor, which renders frames in any order, they follow
   the timeline.
+- **Fusion reports no frame rate; there, time-based controls assume 24 fps.** Resolve's Fusion
+  page tells a plugin nothing about the timeline's rate, so wow, flutter, drift and the moving
+  hiss and dropouts run as if it were 24 fps. On the Edit page they follow the real rate.
 
 The OpenFX build renders on the CPU, so it is far slower than the GPU in Resolume — see
 [Cost](#cost).

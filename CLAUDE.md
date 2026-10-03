@@ -35,7 +35,9 @@ or the clock.
   must STEP (two keys one frame apart), never ramp.
 
 ## Verify
-- **Everything (33 checks, clean universal build, both plugins): `tools/verify.sh`**
+- **Everything (34 checks, clean universal build, both plugins): `tools/verify.sh`**
+  — the Fusion check needs `FERRIC_OFXPROBE` pointing at a probe with
+  `--quirks fusion`, and skips without one
 - The GLSL error signal against `Transport.cpp`: `./build/frtest --tbe`
 - The DIN weighting curve is where this repo claims: `./build/frtest --weighting`
 - The weighted figure responds to the transport: `./build/frtest --wf`
@@ -114,8 +116,11 @@ Windows x64 built and tested. All five homes agree: repo, website project page,
 YouTube, both embed links, and the download block. See `docs/NOTES.md`.
 
 **The OpenFX build was added after v0.1.3, on 2026-10-03.** Verified against the
-FFGL plugin in ofxprobe and by `--cpu`; never loaded into Resolve, Vegas, Nuke or
-Natron. `docs/NOTES.md` says exactly what was and was not checked.
+FFGL plugin in ofxprobe and by `--cpu`. In a real Resolve 21.1 it failed every
+frame in the Fusion page (no frame rate reported, read unguarded); fixed the same
+day with a 24 fps fallback and not yet re-checked in Resolve. Vegas, Nuke and
+Natron have never loaded it. `docs/NOTES.md` says exactly what was and was not
+checked.
 
 ## Not built yet
 - **The browser demo.** Most video plugins in this fleet ship a hand-written

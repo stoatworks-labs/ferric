@@ -10,8 +10,8 @@ Cross-cutting notes that are not specific to this repo live in
 *ferric — the video signal as an analogue tape signal: wow and flutter as a
 time-base error, plus a sliding-band noise-reduction round trip. FFGL effect,
 `FR01`. Built 2026-08-26 and tested the same day in Arena 7.27.1 on macOS and on
-Windows. OpenFX build (`com.stoatworks.ferric`) added 2026-10-03, never yet
-opened in Resolve.*
+Windows. OpenFX build (`com.stoatworks.ferric`) added 2026-10-03; failed in
+Resolve's Fusion page the same day, fixed, not yet re-checked there.*
 
 ## The OpenFX port, 2026-10-03
 
@@ -86,8 +86,8 @@ The extended ofxprobe is a scratch build of resolume-ofx-bridge's probe with
 the bridge repo yet. `tools/ofxcheck.py` detects it from `--help` and falls back
 to the stock probe's ramp at frame 0 without it.
 
-**Not verified:** never loaded into Resolve, Vegas, Nuke or Natron on any
-platform. No host has delivered 16-bit images, an RGB-only clip, straight
+**Not verified:** after the Fusion fix below, not yet re-run in Resolve; never
+loaded into Vegas, Nuke or Natron on any platform. No host has delivered 16-bit images, an RGB-only clip, straight
 alpha, a proxy render scale or tiles to it (the extended probe delivers 8-bit
 or float RGBA, premultiplied, at scale 1). The pixel-unit parts of the effect --
 the compander's eleven taps, head wear, hiss grain, the scanline count -- are in
@@ -103,6 +103,48 @@ main checkout through `git rev-parse --git-common-dir`, which is where the
 bridge actually sits beside it; `FERRIC_BRIDGE` overrides both. A skip that
 reads "not built" when the tool is built is worth a second look in every repo
 that verifies from worktrees.
+
+### Fusion: no frame rate, 2026-10-04
+
+The lead loaded the branch into **DaVinci Resolve Studio 21.1** through
+`OFX_PLUGIN_PATH` and used it as a Fusion tool (MediaIn → Ferric → MediaOut,
+rendered to PNG). **It failed**: "the Fusion composition … could not be
+processed". A `-DDEBUG` build of the Support library, logging to
+`OFX_PLUGIN_LOGFILE`, named it — `OfxImageEffectPropFrameRate` unknown to the
+host, `PropertyUnknownToHost` caught, render returning
+`kOfxStatErrMissingHostFeature` at every frame. Resolve's Fusion page provides
+no frame rate on the effect or on any clip (its Edit page does). My render read
+`dstClip->getFrameRate()` and then the source's, unguarded, with a fallback for
+zero that a throw never reached.
+
+Fixed in `FerricOFX.cpp`: `frameRate()` asks the output clip, the source clip
+and the effect, each inside its own try/catch, takes the first positive finite
+value, and falls back to **24** — Resolve's default timeline rate. So in Fusion
+the time-based controls assume 24 fps; the plugin description, README, guide
+and AGENTS.md say so. The same audit covered every other host property the port
+reads: the premultiplication state and the source's region of definition are
+now guarded too, the preset copy is exception-safe (a throw had left the
+"applying" guard set, which would have swallowed every later edit), and a host
+that refuses the thread suite gets the frame rendered on one thread. Fusion's
+other differences — clip FrameRange [0, 0], no Unmapped rate/range, no
+render-status properties — touch nothing here: the port reads none of them and
+the Support library reads the render-status pair with throwing off.
+
+Checked against the test host's `--quirks fusion`, which removes those
+properties the way Fusion does:
+
+| check | result |
+|---|---|
+| the build before the fix (59fbb14) under the quirk | **fails**, exit 1, `kOfxStatErrMissingHostFeature` — the Resolve failure, reproduced |
+| the fixed build under the quirk | renders |
+| fixed, quirk vs the normal host at `--frame-rate 24`, 9 configurations (defaults; t up to 600; Type C; Failing + trace; a preset; float; General; keyframes) | **byte-identical** in all 9 |
+| control: under the quirk, `--frame-rate 30` vs 24 / on the normal host, 30 vs 24 | same hash (the fallback, not the host) / different (the rate is used when given) |
+| determinism under the quirk: frame 9 alone, after 0..8, out of order | byte-identical |
+| old vs fixed build on the normal host, 8 configurations | byte-identical — nothing changes where a rate is reported |
+| `ofxcheck.py` on both probes after the fix | unchanged: worst 1/255, the same differing-pixel counts as before |
+
+`verify.sh` gained the quirk render (34 checks); it skips without a probe that
+has `--quirks`. **Not yet re-checked in Resolve itself.**
 
 ## Released v0.1.0, 2026-08-26
 

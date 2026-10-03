@@ -3,8 +3,9 @@
 > **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
 > (Anthropic), directed and reviewed by a human author. It has been run in
 > Resolume Arena 7.27.1 on macOS and on Windows — see [Status](#status) for
-> exactly what that does and does not cover. The OpenFX build has only been run
-> under a test host, never in Resolve.
+> exactly what that does and does not cover. The OpenFX build has been tried in
+> DaVinci Resolve once, in the Fusion page, where it failed; the fix is not yet
+> re-checked there.
 
 Put the picture on tape.
 
@@ -152,8 +153,8 @@ Resolume-only, because the OpenFX build has no audio to react to.
 ## OpenFX — Resolve, Vegas, Nuke, Natron
 
 The same effect also builds as an OpenFX plugin, for DaVinci Resolve, Vegas
-Pro, Nuke and Natron — though it has not yet been opened in any of them; see
-[Status](#status). It is a CPU render of the same three passes: the transport, the compander, every control
+Pro, Nuke and Natron — though it has only been tried in one of them, once, and
+failed there before the fix below; see [Status](#status). It is a CPU render of the same three passes: the transport, the compander, every control
 curve and the preset table are the same C++ the Resolume build runs, and the
 per-pixel stage is a line-for-line C++ mirror of the GLSL, tested against it —
 the two agree to within one code value in 8 bits, at defaults, across every
@@ -185,6 +186,11 @@ It appears as **Ferric** under **Stoatworks**.
   `time × rate`. The transport was already a function of time in both. Every
   frame is therefore a pure function of its own time — scrub anywhere and it
   renders the same as playing up to it.
+- **Fusion reports no frame rate; there, time-based controls assume 24 fps.**
+  Resolve's Fusion page gives a plugin no frame rate at all, on the effect or on
+  any clip, so the wow, flutter, drift, hiss and dropouts run as if the
+  timeline were 24 fps. On Resolve's Edit page and in other hosts they follow
+  the real rate.
 - **Show Trace's meters read zero**, for the same reason as the first point.
   The plot and the weighted readout are the same.
 - **It costs CPU, not GPU.** About 30 ms a frame at 1080p on 8 threads of an
@@ -211,8 +217,9 @@ it.
 
 ## Status
 
-**What is verified, and how.** `tools/verify.sh` runs 33 checks against a clean
-universal build of both plugins. They drive the real plugin class through the
+**What is verified, and how.** `tools/verify.sh` runs 34 checks against a clean
+universal build of both plugins (one, the Fusion check below, needs a test host
+with `--quirks` and skips without one). They drive the real plugin class through the
 real FFGL sequence in a headless OpenGL 4.1 core context, the built bundle is
 loaded through `plugMain` the way a host loads it, and the built OpenFX bundle
 is loaded and rendered by `ofxprobe` (resolume-ofx-bridge's test host).
@@ -231,6 +238,7 @@ is loaded and rendered by `ofxprobe` (resolume-ofx-bridge's test host).
 | `--cpu` | the OpenFX build's CPU passes match the GPU to **1/255 worst, with not one pixel more than one code value out**, across 14 cases — and a deliberately detuned control misses by 222/255 |
 | `tools/ofxcheck.py` | the built OpenFX bundle, loaded by `ofxprobe`, matches the FFGL plugin from the same input to **1/255 worst, no pixel past one code value** — 13 cases on the stock probe (its ramp, frame 0) and 14 on an extended build of it (the test card up to ten seconds into the clock, 8-bit and float), every OpenFX preset included. Controls miss by 222–251/255 |
 | OpenFX bundle | universal, exports `OfxGetPlugin`, plist names its own binary, ad-hoc signs |
+| Fusion (`--quirks fusion`) | under a test host that, like Resolve's Fusion page, reports no frame rate, the plugin renders — and byte-identically to a host reporting 24 fps, in 9 configurations. The build before the fix fails there exactly as it did in Resolve |
 
 Render cost is 0.34 ms/frame at 1080p and 0.70 ms at 4K, with Type C and dropouts
 running, on Apple Silicon. The OpenFX build's CPU render of the same settings is
@@ -275,8 +283,14 @@ Two things that only a real host could establish:
 above was driven over the REST API, so inspector *layout* and feel are unjudged.
 No NVIDIA or AMD driver has run it.
 
-**The OpenFX build has never been loaded into Resolve, Vegas, Nuke or Natron.**
-It has been loaded, described and rendered by `ofxprobe` and an extended build
+**The OpenFX build has been tried in a real host once, and it failed.** In
+DaVinci Resolve Studio 21.1, used as a Fusion tool, every frame came back with
+an error, because Resolve's Fusion page reports no frame rate and the plugin
+read one unguarded. That is fixed — every host property is now read so that a
+missing one cannot fail the render, and Fusion gets 24 fps — and the fix is
+proven against a test host that imitates Fusion, but it has **not yet been
+re-checked in Resolve**. Vegas, Nuke and Natron have never loaded it. It has
+been loaded, described and rendered by `ofxprobe` and an extended build
 of it, on macOS only: 8-bit and float RGBA, Filter and General contexts,
 presets applied and released through the host's edit action, keyframed
 controls, and isIdentity. Rendering a frame alone, after the frames before it, and out of
