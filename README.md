@@ -151,9 +151,9 @@ Resolume-only, because the OpenFX build has no audio to react to.
 
 ## OpenFX — Resolve, Vegas, Nuke, Natron
 
-The same effect also builds as an OpenFX plugin, so it runs in DaVinci Resolve
-(Edit and Color pages, and Fusion), Vegas Pro, Nuke and Natron. It is a CPU
-render of the same three passes: the transport, the compander, every control
+The same effect also builds as an OpenFX plugin, for DaVinci Resolve, Vegas
+Pro, Nuke and Natron — though it has not yet been opened in any of them; see
+[Status](#status). It is a CPU render of the same three passes: the transport, the compander, every control
 curve and the preset table are the same C++ the Resolume build runs, and the
 per-pixel stage is a line-for-line C++ mirror of the GLSL, tested against it —
 the two agree to within one code value in 8 bits, at defaults, across every
@@ -187,9 +187,9 @@ It appears as **Ferric** under **Stoatworks**.
   renders the same as playing up to it.
 - **Show Trace's meters read zero**, for the same reason as the first point.
   The plot and the weighted readout are the same.
-- **It costs CPU, not GPU.** About 28 ms a frame at 1080p on 8 threads of an
-  M4 Max with Type C and dropouts running, against 0.3 ms on the GPU in
-  Resolume.
+- **It costs CPU, not GPU.** About 30 ms a frame at 1080p on 8 threads of an
+  M4 Max with Type C and dropouts running (15 ms at the defaults), against
+  0.3 ms on the GPU in Resolume.
 
 ## Build
 
@@ -229,12 +229,13 @@ is loaded and rendered by `ofxprobe` (resolume-ofx-bridge's test host).
 | `--drive`, `--echo` | the reaction arithmetic and the factory-preset logic, with no GPU |
 | `tools/sweep.py` | all 27 controls reach the picture |
 | `--cpu` | the OpenFX build's CPU passes match the GPU to **1/255 worst, with not one pixel more than one code value out**, across 14 cases — and a deliberately detuned control misses by 222/255 |
-| `tools/ofxcheck.py` | the built OpenFX bundle, loaded by `ofxprobe`, matches the FFGL plugin from the same input to **1/255 worst** across 13 cases, including every OpenFX preset — control misses by 251/255 |
+| `tools/ofxcheck.py` | the built OpenFX bundle, loaded by `ofxprobe`, matches the FFGL plugin from the same input to **1/255 worst, no pixel past one code value** — 13 cases on the stock probe (its ramp, frame 0) and 14 on an extended build of it (the test card up to ten seconds into the clock, 8-bit and float), every OpenFX preset included. Controls miss by 222–251/255 |
 | OpenFX bundle | universal, exports `OfxGetPlugin`, plist names its own binary, ad-hoc signs |
 
 Render cost is 0.34 ms/frame at 1080p and 0.70 ms at 4K, with Type C and dropouts
 running, on Apple Silicon. The OpenFX build's CPU render of the same settings is
-about 28 ms/frame at 1080p on 8 threads (215 ms on one).
+about 30 ms/frame at 1080p through the plugin on 8 threads (215 ms on one
+thread for the passes alone).
 
 ### In Resolume
 
@@ -275,12 +276,18 @@ above was driven over the REST API, so inspector *layout* and feel are unjudged.
 No NVIDIA or AMD driver has run it.
 
 **The OpenFX build has never been loaded into Resolve, Vegas, Nuke or Natron.**
-It has been loaded, described and rendered by `ofxprobe` on macOS only, at
-8-bit RGBA. The Windows and Linux bundles are built in CI; the Linux one is
-`dlopen`ed on Rocky 8 (the distro Resolve supports) by the release workflow, and
-the Windows one has never been loaded by anything. 16-bit and float pixel
-depths, RGB-only clips and straight alpha are handled by the same marshalling
-the fleet's other OpenFX ports use, but no host has exercised them here.
+It has been loaded, described and rendered by `ofxprobe` and an extended build
+of it, on macOS only: 8-bit and float RGBA, Filter and General contexts,
+presets applied and released through the host's edit action, keyframed
+controls, and isIdentity. Rendering a frame alone, after the frames before it, and out of
+order all give byte-identical output. The Windows and Linux bundles are built
+in CI; the Linux one is `dlopen`ed on Rocky 8 (the distro Resolve supports) by
+the release workflow, and the Windows one has never been loaded by anything.
+16-bit images, RGB-only clips and straight alpha go through the same
+marshalling as the fleet's other OpenFX ports, but no host has delivered them
+here. A proxy render scale is not compensated for: the compander, head wear and
+hiss work in render pixels, as they do in Resolume at a smaller composition
+size, so a proxy preview looks coarser than the final render.
 
 ⚠️ During the Windows session Arena restarted once, at a point I could not
 attribute to Ferric: there were no application crash events, the plugin had

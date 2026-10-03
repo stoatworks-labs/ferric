@@ -54,11 +54,24 @@ compiler, which is what the new `linux-ofx` job does in AlmaLinux 8, with
 | `frtest --cpu`: CPU passes vs GPU, 14 cases (defaults, every stage, ten seconds in, 7 presets) | worst **1/255**, **0** pixels over 1/255 |
 | the same, control (Flutter 0.45 on the GPU vs 0.50 on the CPU) | 222/255, 42162 pixels over — fails as it must |
 | a neutral Ferric, CPU vs GPU | bit-exact, 0 pixels differ |
-| `tools/ofxcheck.py`: the built `.ofx` in ofxprobe vs the FFGL plugin, ofxprobe's ramp input, 13 cases incl. every OpenFX preset | worst **1/255**, **0** pixels over 1/255 |
-| the same, control | 251/255 — fails |
-| CPU passes, 1080p, Type C + dropouts | 215 ms on 1 thread, **27.6 ms on 8**, 26.2 on 16 |
+| `tools/ofxcheck.py`, stock ofxprobe: the built `.ofx` vs the FFGL plugin, ofxprobe's ramp at frame 0, 13 cases incl. every OpenFX preset | worst **1/255**, **0** pixels over 1/255 |
+| the same, extended ofxprobe: frtest's test card via `--in`, `--frame-rate 60 --time N-1` against N FFGL frames, 14 cases up to t = 10 s, 8-bit and `--depth float` | worst **1/255**, **0** pixels over 1/255, both depths |
+| controls: Flutter 0.50 vs 0.45 / the OpenFX side one frame late | 222–251/255 / 226/255 — both fail |
+| frame 9 of a changing sequence rendered alone, after 0..8 in one instance, and out of order (9, 3, 7, 0, 9) | byte-identical; frames 3 and 7 too |
+| `--frames-needed` / `--strict-frames` | only frame t is fetched; no refusals |
+| `--key amount=0:0,20:0.5` at frame 10 vs `--set amount=0.25` | same hash |
+| General context vs Filter | same hash |
+| isIdentity: Mix 0 / Mix 0 with Show Trace | identity, render skipped / not identity |
+| CPU passes, 1080p, Type C + dropouts (`frtest --bench`) | 215 ms on 1 thread, **27.6 ms on 8**, 26.2 on 16 |
 | CPU passes, 4K | 863 ms / 144 ms / 139 ms |
-| one cold render through ofxprobe at 1080p, wall | 60–90 ms (load, marshalling, first touch of three 33 MB buffers) |
+| the plugin in the extended host, 1080p 8-bit, the host's 8 threads | median **31 ms** Type C + dropouts, **15 ms** defaults, over 40 renders each |
+
+The timings in the host were taken with other sessions loading the machine
+(load average about 9), and single renders ranged 18–60 ms; the medians are the
+number to trust. The difference from the bare passes is marshalling and three
+fresh 33 MB float buffers per render. Taking the pixel address once per row
+instead of per pixel was tried and measured A/B, interleaved under the same
+load: no difference, so it was not kept.
 
 The 1/255 is last-bit float disagreement flipping the rounding of pixels that
 sit within it of a code-value boundary. Each stage alone — hiss, warp, wear,
@@ -68,14 +81,20 @@ tested it by rounding the CPU's intermediates to half: no change, so it is not
 that. It is the GPU fusing and reciprocating where the CPU divides, its
 fixed-point bilinear weights, and `sin()`.
 
+The extended ofxprobe is a scratch build of resolume-ofx-bridge's probe with
+`--in`, `--time`, `--seq`, `--depth`, `--batch` and the rest added; it is not in
+the bridge repo yet. `tools/ofxcheck.py` detects it from `--help` and falls back
+to the stock probe's ramp at frame 0 without it.
+
 **Not verified:** never loaded into Resolve, Vegas, Nuke or Natron on any
-platform. ofxprobe instantiates the Filter context only, at 8-bit RGBA
-premultiplied, at frame 0 — so 16-bit and float depths, RGB clips, straight
-alpha, the General context and non-zero times through a real host are
-unexercised (the CPU passes at non-zero time are covered by `--cpu`'s
-ten-seconds-in case, host-free). The Windows `.ofx` is built in CI and has never
-been loaded by anything; the Linux one is a dlopen and two entry points on
-Rocky 8, not a render.
+platform. No host has delivered 16-bit images, an RGB-only clip, straight
+alpha, a proxy render scale or tiles to it (the extended probe delivers 8-bit
+or float RGBA, premultiplied, at scale 1). The pixel-unit parts of the effect --
+the compander's eleven taps, head wear, hiss grain, the scanline count -- are in
+render pixels, as they are in Resolume at a lower composition size, so a proxy
+preview will look coarser than the final render. The Windows `.ofx` is built in
+CI and has never been loaded by anything; the Linux one is a dlopen and two
+entry points on Rocky 8, not a render.
 
 ⚠️ **`tools/verify.sh` had been skipping its plugMain check whenever it ran from
 a git worktree.** It looked for `../resolume-ofx-bridge`, and from

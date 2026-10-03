@@ -248,5 +248,6 @@ worth reporting.
 Measured on an M4 Max: **0.34 ms/frame at 1080p and 0.70 ms at 4K**, with Type C and dropouts both
 running. The compander is the expensive part and it costs the same whichever type is selected.
 
-The OpenFX build does the same work on the CPU: about **28 ms/frame at 1080p and 140 ms at 4K** on
-8 threads of the same machine, and roughly eight times that on one.
+The OpenFX build does the same work on the CPU: about **30 ms/frame at 1080p and 140 ms at 4K** on
+8 threads of the same machine (15 ms at 1080p at the defaults), and roughly eight times that on
+one.
