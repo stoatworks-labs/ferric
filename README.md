@@ -33,15 +33,16 @@ readout of weighted wow and flutter underneath.*
 
 ## Download
 
-**[v0.1.3](https://github.com/stoatworks-labs/ferric/releases/tag/v0.1.3)** — prebuilt for macOS and Windows. Pick your platform:
+**[v0.2.0](https://github.com/stoatworks-labs/ferric/releases/tag/v0.2.0)** — prebuilt for macOS, Windows and Linux. Pick your platform:
 
 <details>
 <summary><b>macOS</b> — Universal (Apple Silicon + Intel)</summary>
 
 | Build | Download | Size |
 | --- | --- | --- |
-| Universal (Apple Silicon + Intel) · .dmg disk image | [`ferric-0.1.3-macos-universal.dmg`](https://github.com/stoatworks-labs/ferric/releases/download/v0.1.3/ferric-0.1.3-macos-universal.dmg) | 231 KB |
-| Universal (Apple Silicon + Intel) · .zip archive | [`ferric-macos-universal.zip`](https://github.com/stoatworks-labs/ferric/releases/latest/download/ferric-macos-universal.zip) | 192 KB |
+| Universal (Apple Silicon + Intel) · .dmg disk image | [`ferric-0.2.0-macos-universal.dmg`](https://github.com/stoatworks-labs/ferric/releases/download/v0.2.0/ferric-0.2.0-macos-universal.dmg) | 235 KB |
+| Universal (Apple Silicon + Intel) · .zip archive | [`ferric-macos-universal.zip`](https://github.com/stoatworks-labs/ferric/releases/latest/download/ferric-macos-universal.zip) | 193 KB |
+| Universal (Apple Silicon + Intel) · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`ferric-ofx-macos-universal.zip`](https://github.com/stoatworks-labs/ferric/releases/latest/download/ferric-ofx-macos-universal.zip) | 262 KB |
 
 </details>
 
@@ -50,8 +51,18 @@ readout of weighted wow and flutter underneath.*
 
 | Build | Download | Size |
 | --- | --- | --- |
-| x64 · .exe installer | [`ferric-0.1.3-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/ferric/releases/download/v0.1.3/ferric-0.1.3-windows-x86_64-setup.exe) | 227 KB |
-| x64 · .zip archive | [`ferric-windows-x86_64.zip`](https://github.com/stoatworks-labs/ferric/releases/latest/download/ferric-windows-x86_64.zip) | 121 KB |
+| x64 · .exe installer | [`ferric-0.2.0-windows-x86_64-setup.exe`](https://github.com/stoatworks-labs/ferric/releases/download/v0.2.0/ferric-0.2.0-windows-x86_64-setup.exe) | 230 KB |
+| x64 · .zip archive | [`ferric-windows-x86_64.zip`](https://github.com/stoatworks-labs/ferric/releases/latest/download/ferric-windows-x86_64.zip) | 122 KB |
+| x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`ferric-ofx-windows-x86_64.zip`](https://github.com/stoatworks-labs/ferric/releases/latest/download/ferric-ofx-windows-x86_64.zip) | 78 KB |
+
+</details>
+
+<details>
+<summary><b>Linux</b> — x64</summary>
+
+| Build | Download | Size |
+| --- | --- | --- |
+| x64 · .zip archive (OpenFX — Resolve, Vegas, Nuke) | [`ferric-ofx-linux-x86_64.zip`](https://github.com/stoatworks-labs/ferric/releases/latest/download/ferric-ofx-linux-x86_64.zip) | 717 KB |
 
 </details>
 
