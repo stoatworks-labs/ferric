@@ -93,9 +93,9 @@ differences:
   In Resolume the hiss and the dropouts advance with the frames actually rendered, so a stalled
   host does not make the grain jump; in an editor, which renders frames in any order, they follow
   the timeline.
-- **Fusion reports no frame rate; there, time-based controls assume 24 fps.** Resolve's Fusion
-  page tells a plugin nothing about the timeline's rate, so wow, flutter, drift and the moving
-  hiss and dropouts run as if it were 24 fps. On the Edit page they follow the real rate.
+- **Resolve's Fusion page reports the frame rate on the effect but not on its clips; the plugin
+  reads the effect's, and assumes 24 fps only where a host reports none.** So in Fusion, as on the
+  Edit page, wow, flutter, drift and the moving hiss and dropouts follow the timeline's real rate.
 
 The OpenFX build renders on the CPU, so it is far slower than the GPU in Resolume — see
 [Cost](#cost).

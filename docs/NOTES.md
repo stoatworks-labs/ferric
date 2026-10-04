@@ -119,6 +119,16 @@ no frame rate on the effect or on any clip (its Edit page does). My render read
 `dstClip->getFrameRate()` and then the source's, unguarded, with a fallback for
 zero that a throw never reached.
 
+**Corrected 2026-10-04:** Fusion does report the rate on the effect — 24 and 25
+on 24 and 25 fps timelines, read in Resolve Studio 21.1's Fusion page by a
+raw-API plugin that dumps properties; only the clips lack it, along with their
+Unmapped rate and range. Nor was the Source clip's FrameRange [0, 0] in that
+test ([0, 120] and [0, 130]); the begin/end-sequence render range was. So in
+Fusion the fix below gets the effect's rate, the timeline's, not a fixed 24;
+and `--quirks fusion`, which withholds the effect's rate too, is stricter than
+Fusion: the checks under it measure the 24 fps fallback that only a host with
+no rate anywhere gets.
+
 Fixed in `FerricOFX.cpp`: `frameRate()` asks the output clip, the source clip
 and the effect, each inside its own try/catch, takes the first positive finite
 value, and falls back to **24** — Resolve's default timeline rate. So in Fusion
@@ -155,8 +165,8 @@ The lead loaded the fixed build into the same **DaVinci Resolve Studio 21.1**
 on this Mac and rendered it as a Fusion tool again (MediaIn → Ferric →
 MediaOut, to PNG), Wow 0.8, Flutter 0.6, Hiss 0.5, over a 1080p test
 sequence. **It renders.** Six frames, compared with the test host rendering the
-same bundle, input and settings at `--frame-rate 24` (the fallback Fusion now
-gets):
+same bundle, input and settings at `--frame-rate 24` (the fallback Fusion was
+then thought to get; see the correction above):
 
 | frame | worst | pixels differing at all | pixels over 1/255 |
 |---|---|---|---|

@@ -492,17 +492,18 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-head_ "A host with no frame rate (Resolve's Fusion page)"
+head_ "A host with no frame rate (stricter than Resolve's Fusion page)"
 # ---------------------------------------------------------------------------
-# ☠️ DaVinci Resolve 21.1's Fusion page gives a plugin NO frame rate -- not on
-# the effect, not on any clip -- and an unguarded read throws out of render as
-# kOfxStatErrMissingHostFeature at every frame. That is what the first build of
-# this port did in a real Resolve. A test host with `--quirks fusion` presents
-# the properties the way Fusion does; under it the plugin must render, and
-# render exactly what a host reporting 24 fps renders, because 24 is the
-# fallback. A probe without the flag skips -- point FERRIC_OFXPROBE at one.
+# ☠️ DaVinci Resolve 21.1's Fusion page gives a plugin NO frame rate on its
+# clips -- only on the effect -- and an unguarded clip read throws out of render
+# as kOfxStatErrMissingHostFeature at every frame. That is what the first build
+# of this port did in a real Resolve. A test host with `--quirks fusion` is
+# stricter than Fusion: it withholds the effect's rate too. Under it the plugin
+# must render, and render exactly what a host reporting 24 fps renders, because
+# 24 is the fallback. A probe without the flag skips -- point FERRIC_OFXPROBE
+# at one.
 if [ ! -x "$OFXPROBE" ]; then
-    skip "no ofxprobe -- the Fusion frame-rate fallback is UNVERIFIED"
+    skip "no ofxprobe -- the no-frame-rate fallback is UNVERIFIED"
 else
     probe_help=$("$OFXPROBE" --help 2>&1)
     case "$probe_help" in
@@ -522,7 +523,7 @@ else
                 bad "renders under --quirks fusion, but not as a 24 fps host does ($quirk_hash vs $rate_hash)"
             fi ;;
         *)
-            skip "this ofxprobe has no --quirks (set FERRIC_OFXPROBE) -- the Fusion frame-rate fallback is UNVERIFIED" ;;
+            skip "this ofxprobe has no --quirks (set FERRIC_OFXPROBE) -- the no-frame-rate fallback is UNVERIFIED" ;;
     esac
 fi
 

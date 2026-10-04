@@ -190,11 +190,12 @@ It appears as **Ferric** under **Stoatworks**.
   `time × rate`. The transport was already a function of time in both. Every
   frame is therefore a pure function of its own time — scrub anywhere and it
   renders the same as playing up to it.
-- **Fusion reports no frame rate; there, time-based controls assume 24 fps.**
-  Resolve's Fusion page gives a plugin no frame rate at all, on the effect or on
-  any clip, so the wow, flutter, drift, hiss and dropouts run as if the
-  timeline were 24 fps. On Resolve's Edit page and in other hosts they follow
-  the real rate.
+- **Resolve's Fusion page reports the frame rate on the effect but not on its
+  clips; the plugin reads the effect's, and assumes 24 fps only where a host
+  reports none.** So the wow, flutter, drift, hiss and dropouts follow the
+  timeline's real rate in Fusion too, as they do on Resolve's Edit page and in
+  other hosts; a host that reports no rate anywhere runs them as if the
+  timeline were 24 fps.
 - **Show Trace's meters read zero**, for the same reason as the first point.
   The plot and the weighted readout are the same.
 - **It costs CPU, not GPU.** About 30 ms a frame at 1080p on 8 threads of an
@@ -242,7 +243,7 @@ is loaded and rendered by `ofxprobe` (resolume-ofx-bridge's test host).
 | `--cpu` | the OpenFX build's CPU passes match the GPU to **1/255 worst, with not one pixel more than one code value out**, across 14 cases — and a deliberately detuned control misses by 222/255 |
 | `tools/ofxcheck.py` | the built OpenFX bundle, loaded by `ofxprobe`, matches the FFGL plugin from the same input to **1/255 worst, no pixel past one code value** — 13 cases on the stock probe (its ramp, frame 0) and 14 on an extended build of it (the test card up to ten seconds into the clock, 8-bit and float), every OpenFX preset included. Controls miss by 222–251/255 |
 | OpenFX bundle | universal, exports `OfxGetPlugin`, plist names its own binary, ad-hoc signs |
-| Fusion (`--quirks fusion`) | under a test host that, like Resolve's Fusion page, reports no frame rate, the plugin renders — and byte-identically to a host reporting 24 fps, in 9 configurations. The build before the fix fails there exactly as it did in Resolve |
+| Fusion (`--quirks fusion`) | under a test host that reports no frame rate at all — stricter than Resolve's Fusion page, which reports one on the effect though not on its clips — the plugin renders, and byte-identically to a host reporting 24 fps, in 9 configurations. The build before the fix fails there exactly as it did in Resolve |
 
 Render cost is 0.34 ms/frame at 1080p and 0.70 ms at 4K, with Type C and dropouts
 running, on Apple Silicon. The OpenFX build's CPU render of the same settings is
@@ -290,8 +291,9 @@ No NVIDIA or AMD driver has run it.
 **The OpenFX build has been in one real host: DaVinci Resolve Studio 21.1 on
 macOS, as a Fusion tool.** The first try, on 2026-10-03, failed: every frame
 came back with an error, because Resolve's Fusion page reports no frame rate
-and the plugin read one unguarded. That is fixed — every host property is now
-read so that a missing one cannot fail the render, and Fusion gets 24 fps — and
+on its clips and the plugin read a clip's unguarded. That is fixed — every host
+property is now read so that a missing one cannot fail the render, and the
+plugin goes on to the effect's rate, which Fusion does report — and
 on 2026-10-04 the fixed build **rendered in Resolve**: six 1080p frames
 (MediaIn → Ferric → MediaOut, Wow 0.8, Flutter 0.6, Hiss 0.5) match the test
 host at 24 fps to **1/255 worst**, with at most five pixels a frame differing

@@ -118,12 +118,13 @@ YouTube, both embed links, and the download block. See `docs/NOTES.md`.
 **The OpenFX build was added after v0.1.3, on 2026-10-03, and ships from
 v0.2.0** (`ferric-ofx-{macos-universal,windows-x86_64,linux-x86_64}.zip`).
 Verified against the FFGL plugin in ofxprobe and by `--cpu`. In a real Resolve
-21.1 it failed every frame in the Fusion page (no frame rate reported, read
-unguarded); fixed the same day with a 24 fps fallback, and on 2026-10-04 the
-fixed build rendered in Resolve's Fusion page on macOS, matching the test host
-at 24 fps to 1/255. Vegas, Nuke and Natron have never loaded it, and the
-Windows and Linux bundles have never rendered in a host. `docs/NOTES.md` says
-exactly what was and was not checked.
+21.1 it failed every frame in the Fusion page (no frame rate on the clips, read
+unguarded); fixed the same day with guarded reads (the clips, then the effect,
+which Fusion does report, then 24 fps), and on 2026-10-04 the fixed build
+rendered in Resolve's Fusion page on macOS, matching the test host at 24 fps to
+1/255. Vegas, Nuke and Natron have never loaded it, and the Windows and Linux
+bundles have never rendered in a host. `docs/NOTES.md` says exactly what was and
+was not checked.
 
 ## Not built yet
 - **The browser demo.** Most video plugins in this fleet ship a hand-written

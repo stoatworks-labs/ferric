@@ -32,16 +32,17 @@
 ///
 /// OFX time is in FRAMES; seconds are `time / frame rate`.
 ///
-/// ☠️ **DaVinci Resolve's Fusion page reports no frame rate at all** -- not on
-/// the effect, not on any clip -- and the Support library turns a missing
-/// property into an exception that leaves `render` as
-/// kOfxStatErrMissingHostFeature, at every frame, with nothing on screen but
-/// "could not be processed". So the rate comes from `frameRate()`, which asks
-/// the output clip, the source clip and the effect, each inside its own
-/// try/catch, and falls back to 24 -- Resolve's default timeline rate. In
-/// Fusion, therefore, the time-based controls assume 24 fps. The same rule
-/// covers the other host properties this file reads: none of them may escape
-/// an action. The transport's phases were already a function of absolute time
+/// ☠️ **DaVinci Resolve's Fusion page reports no frame rate on its clips** --
+/// only on the effect -- and the Support library turns a missing property
+/// into an exception that leaves `render` as kOfxStatErrMissingHostFeature,
+/// at every frame, with nothing on screen but "could not be processed"; the
+/// first build read the clips' rate and failed exactly so. So the rate comes
+/// from `frameRate()`, which asks the output clip, the source clip and the
+/// effect, each inside its own try/catch, and falls back to 24 -- Resolve's
+/// default timeline rate. In Fusion, therefore, the time-based controls get
+/// the effect's rate, the timeline's; 24 fps is only for a host that reports
+/// no rate anywhere. The same rule covers the other host properties this file
+/// reads: none of them may escape an action. The transport's phases were already a function of absolute time
 /// in both builds. The hiss
 /// and dropout phases are the one departure: the FFGL build integrates them
 /// over clamped frame deltas so a host stall does not jump the grain, and here
@@ -109,8 +110,9 @@ constexpr const char* kPluginDescription =
 	"rather than present and doing nothing, and the two presets built on it -- "
 	"Beat Slip and Breathing -- are not in this menu.\n\n"
 	"Every frame is a function of its own time, so any frame renders on its own "
-	"and a scrub lands where it should. Fusion reports no frame rate; there, "
-	"time-based controls assume 24 fps.\n\n"
+	"and a scrub lands where it should. Resolve's Fusion page reports the "
+	"frame rate on the effect but not on its clips; the plugin reads the "
+	"effect's, and assumes 24 fps only where a host reports none.\n\n"
 	"https://stoatworks-labs.com";
 
 // Parameter names are identity: a saved project refers to them. Do not rename.
@@ -137,10 +139,11 @@ constexpr const char* kParamMix         = "mix";
 
 using namespace ferric;
 
-/// The frame rate when the host will not say. Resolve's default timeline rate,
-/// because Resolve's Fusion page is the host that does not say -- see the file
-/// header. Ferric has no domain reason for any other number: nothing in it is
-/// locked to a video standard's rate.
+/// The frame rate when the host will not say, on a clip or on the effect.
+/// Resolve's default timeline rate; Resolve's Fusion page leaves it off the
+/// clips but says on the effect -- see the file header. Ferric has no domain
+/// reason for any other number: nothing in it is locked to a video standard's
+/// rate.
 constexpr double kFallbackFrameRate = 24.0;
 
 bool usableRate( double fps )
@@ -570,7 +573,8 @@ private:
 	///
 	/// ⚠️ Every read is inside its own try/catch, and that is the point. The
 	/// Support library throws on a property the host does not have, and Resolve's
-	/// Fusion page has none of these -- an unguarded read here failed every frame.
+	/// Fusion page has neither clip's -- an unguarded read here failed every
+	/// frame. It does have the effect's, so there the third read answers.
 	double frameRate() const
 	{
 		try
