@@ -43,10 +43,12 @@ flutter as a percentage of a line period.*
 >
 > Still open: **no operator has dragged a slider.** Every control was driven over Resolume's REST
 > API, so the inspector's layout and feel are unjudged. **No NVIDIA or AMD driver has run it.**
-> The OpenFX build renders the same pictures as the Resolume one to within one code value in 8
-> bits, checked pixel for pixel under a test host. It has been tried in **DaVinci Resolve once, in
-> the Fusion page, and failed** there; that is fixed but not yet re-checked in Resolve, and Vegas,
-> Nuke and Natron have never opened it. None of it has been through a show.
+> The OpenFX build, which v0.2.0 adds, renders the same pictures as the Resolume one to within one
+> code value in 8 bits, checked pixel for pixel under a test host. It has been run in **DaVinci
+> Resolve Studio 21.1 on macOS, as a Fusion tool**, where it matches that test host to within one
+> code value too (a first try there failed; that is fixed). Vegas, Nuke and Natron have never
+> opened it, and the Windows and Linux OpenFX builds have never rendered in a host. None of it has
+> been through a show.
 >
 > This codebase was created with AI assistance, directed and reviewed by a human author.
 
@@ -70,8 +72,9 @@ Resolume scans the plugin folder at startup. If Ferric is not in the effects lis
 
 ### OpenFX — Resolve, Vegas, Nuke, Natron
 
-Take the `ferric-ofx-*` zip for your platform and copy `Ferric.ofx.bundle` into the standard
-OpenFX folder, then restart the host:
+The OpenFX build ships from **v0.2.0**: each release carries `ferric-ofx-macos-universal.zip`,
+`ferric-ofx-windows-x86_64.zip` and `ferric-ofx-linux-x86_64.zip`. Take the one for your platform
+and copy `Ferric.ofx.bundle` into the standard OpenFX folder, then restart the host:
 
 ```
 macOS    /Library/OFX/Plugins/

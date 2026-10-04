@@ -287,7 +287,9 @@ property into an exception that fails the action -- found in a real Resolve
 21.1, where every frame came back kOfxStatErrMissingHostFeature. So
 `frameRate()` in FerricOFX.cpp tries the output clip, the source clip and the
 effect, each in its own try/catch, and falls back to 24 (Resolve's default
-timeline rate). The rule is general: **no host property may escape an action.**
+timeline rate). With that, it rendered in the same Resolve on 2026-10-04 and
+matched the test host at 24 fps to 1/255. The rule is general: **no host
+property may escape an action.**
 The premultiplication state and the source's region of definition are read the
 same way, the preset copy is exception-safe, and a refused thread suite falls
 back to one thread. Fusion also reports a clip frame range of [0, 0] and omits
@@ -332,6 +334,7 @@ frame in bands of rows across the host's threads, with a barrier between passes
 | OpenFX CPU passes vs GPU, 14 cases (`--cpu`) | 1/255 worst, 0 pixels over 1/255 |
 | the `.ofx` in ofxprobe vs the FFGL plugin (`ofxcheck.py`), 13 cases stock / 14 extended, 8-bit and float | 1/255 worst, 0 pixels over 1/255 |
 | the `.ofx`, frame 9 alone vs after 0..8 vs out of order | byte-identical |
+| the `.ofx` in Resolve 21.1's Fusion page vs the test host at 24 fps, 6 frames at 1080p | 1/255 worst, 0 pixels over 1/255 |
 | OpenFX CPU passes, 1080p, Type C + dropouts | 215 ms on 1 thread, 27.6 ms on 8 |
 | OpenFX plugin in the host, 1080p 8-bit, 8 threads | ~31 ms Type C + dropouts, ~15 ms defaults (medians) |
 | OpenFX CPU, 4K | 863 ms on 1 thread, 144 ms on 8 |

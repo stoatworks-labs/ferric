@@ -11,7 +11,8 @@ Cross-cutting notes that are not specific to this repo live in
 time-base error, plus a sliding-band noise-reduction round trip. FFGL effect,
 `FR01`. Built 2026-08-26 and tested the same day in Arena 7.27.1 on macOS and on
 Windows. OpenFX build (`com.stoatworks.ferric`) added 2026-10-03; failed in
-Resolve's Fusion page the same day, fixed, not yet re-checked there.*
+Resolve's Fusion page the same day, fixed, and rendered there correctly on
+2026-10-04. It ships from v0.2.0.*
 
 ## The OpenFX port, 2026-10-03
 
@@ -86,8 +87,9 @@ The extended ofxprobe is a scratch build of resolume-ofx-bridge's probe with
 the bridge repo yet. `tools/ofxcheck.py` detects it from `--help` and falls back
 to the stock probe's ramp at frame 0 without it.
 
-**Not verified:** after the Fusion fix below, not yet re-run in Resolve; never
-loaded into Vegas, Nuke or Natron on any platform. No host has delivered 16-bit images, an RGB-only clip, straight
+**Not verified:** never loaded into Vegas, Nuke or Natron on any platform; in
+Resolve, only the Fusion page on macOS (see
+[back in Resolve](#back-in-resolve-2026-10-04) below). No host has delivered 16-bit images, an RGB-only clip, straight
 alpha, a proxy render scale or tiles to it (the extended probe delivers 8-bit
 or float RGBA, premultiplied, at scale 1). The pixel-unit parts of the effect --
 the compander's eleven taps, head wear, hiss grain, the scanline count -- are in
@@ -144,7 +146,25 @@ properties the way Fusion does:
 | `ofxcheck.py` on both probes after the fix | unchanged: worst 1/255, the same differing-pixel counts as before |
 
 `verify.sh` gained the quirk render (34 checks); it skips without a probe that
-has `--quirks`. **Not yet re-checked in Resolve itself.**
+has `--quirks`. **Not yet re-checked in Resolve itself** at that point — it was
+within the hour; see below.
+
+### Back in Resolve, 2026-10-04
+
+The lead loaded the fixed build into the same **DaVinci Resolve Studio 21.1**
+on this Mac and rendered it as a Fusion tool again (MediaIn → Ferric →
+MediaOut, to PNG), Wow 0.8, Flutter 0.6, Hiss 0.5, over a 1080p test
+sequence. **It renders.** Six frames, compared with the test host rendering the
+same bundle, input and settings at `--frame-rate 24` (the fallback Fusion now
+gets):
+
+| frame | worst | pixels differing at all | pixels over 1/255 |
+|---|---|---|---|
+| 0–5 | **1/255** | 0–5 of 2,073,600 | **0** |
+
+The effect itself changes about 1.96 million of those pixels a frame, so this
+is the whole picture agreeing, not an untouched one. Checked in the Fusion page
+only — not on Resolve's Edit or Color page, and not on Windows or Linux.
 
 ## Released v0.1.0, 2026-08-26
 

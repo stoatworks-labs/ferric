@@ -3,9 +3,10 @@
 > **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
 > (Anthropic), directed and reviewed by a human author. It has been run in
 > Resolume Arena 7.27.1 on macOS and on Windows — see [Status](#status) for
-> exactly what that does and does not cover. The OpenFX build has been tried in
-> DaVinci Resolve once, in the Fusion page, where it failed; the fix is not yet
-> re-checked there.
+> exactly what that does and does not cover. The OpenFX build, new in v0.2.0,
+> has been run in DaVinci Resolve Studio 21.1 on macOS as a Fusion tool, where it
+> matches the test host to within one code value; no other OpenFX host has
+> loaded it.
 
 Put the picture on tape.
 
@@ -153,14 +154,17 @@ Resolume-only, because the OpenFX build has no audio to react to.
 ## OpenFX — Resolve, Vegas, Nuke, Natron
 
 The same effect also builds as an OpenFX plugin, for DaVinci Resolve, Vegas
-Pro, Nuke and Natron — though it has only been tried in one of them, once, and
-failed there before the fix below; see [Status](#status). It is a CPU render of the same three passes: the transport, the compander, every control
+Pro, Nuke and Natron — though it has only been run in one of them, Resolve, as a
+Fusion tool on macOS; see [Status](#status). It is a CPU render of the same three passes: the transport, the compander, every control
 curve and the preset table are the same C++ the Resolume build runs, and the
 per-pixel stage is a line-for-line C++ mirror of the GLSL, tested against it —
 the two agree to within one code value in 8 bits, at defaults, across every
 stage and at every preset the OpenFX menu offers.
 
-Grab the `ferric-ofx-*` zip for your platform from the release and copy
+It ships from **v0.2.0**: each release carries `ferric-ofx-macos-universal.zip`,
+`ferric-ofx-windows-x86_64.zip` and `ferric-ofx-linux-x86_64.zip`. Grab the one
+for your platform from the
+[releases page](https://github.com/stoatworks-labs/ferric/releases) and copy
 `Ferric.ofx.bundle` into the standard OpenFX folder, then restart the host:
 
 ```
@@ -283,13 +287,16 @@ Two things that only a real host could establish:
 above was driven over the REST API, so inspector *layout* and feel are unjudged.
 No NVIDIA or AMD driver has run it.
 
-**The OpenFX build has been tried in a real host once, and it failed.** In
-DaVinci Resolve Studio 21.1, used as a Fusion tool, every frame came back with
-an error, because Resolve's Fusion page reports no frame rate and the plugin
-read one unguarded. That is fixed — every host property is now read so that a
-missing one cannot fail the render, and Fusion gets 24 fps — and the fix is
-proven against a test host that imitates Fusion, but it has **not yet been
-re-checked in Resolve**. Vegas, Nuke and Natron have never loaded it. It has
+**The OpenFX build has been in one real host: DaVinci Resolve Studio 21.1 on
+macOS, as a Fusion tool.** The first try, on 2026-10-03, failed: every frame
+came back with an error, because Resolve's Fusion page reports no frame rate
+and the plugin read one unguarded. That is fixed — every host property is now
+read so that a missing one cannot fail the render, and Fusion gets 24 fps — and
+on 2026-10-04 the fixed build **rendered in Resolve**: six 1080p frames
+(MediaIn → Ferric → MediaOut, Wow 0.8, Flutter 0.6, Hiss 0.5) match the test
+host at 24 fps to **1/255 worst**, with at most five pixels a frame differing
+at all. It has not been checked on Resolve's Edit or Color page. Vegas, Nuke and
+Natron have never loaded it. It has
 been loaded, described and rendered by `ofxprobe` and an extended build
 of it, on macOS only: 8-bit and float RGBA, Filter and General contexts,
 presets applied and released through the host's edit action, keyframed
