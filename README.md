@@ -1,9 +1,9 @@
 # ferric
 
 > **AI-assisted project.** This codebase was created with [Claude](https://claude.com/claude-code)
-> (Anthropic), directed and reviewed by a human author. It has been run in
-> Resolume Arena 7.27.1 on macOS and on Windows — see [Status](#status) for
-> exactly what that does and does not cover. The OpenFX build, new in v0.2.0,
+> (Anthropic), directed and reviewed by a human author. It's been run in
+> Resolume Arena 7.27.1 on macOS and on Windows (see [Status](#status) for
+> what that does and doesn't cover). The OpenFX build, new in v0.2.0,
 > has been run in DaVinci Resolve Studio 21.1 on macOS as a Fusion tool, where it
 > matches the test host to within one code value; no other OpenFX host has
 > loaded it.
@@ -11,22 +11,22 @@
 Put the picture on tape.
 
 Ferric treats the video signal the way a cassette deck treats an audio one. A
-transport that is never quite steady pulls it past the head, so the image leans,
+transport that's never quite steady pulls it past the head, so the image leans,
 waves and tears in time; the oxide adds its own hiss and loses contact here and
 there; and the consumer sliding-band noise reduction that hid one under the other
-is there too, with both ends of it under your control — which is where the
+is in there too, with both ends of it under your control, which is where the
 interesting damage lives.
 
-An FFGL effect for **Resolume Arena and Avenue**, and the same effect as an
-OpenFX plugin for **DaVinci Resolve, Vegas, Nuke and Natron** — see
-[OpenFX](#openfx--resolve-vegas-nuke-natron) for what is and is not the same.
+It's an FFGL effect for **Resolume Arena and Avenue**, and the same effect as an
+OpenFX plugin for **DaVinci Resolve, Vegas, Nuke and Natron** (see
+[OpenFX](#openfx--resolve-vegas-nuke-natron) for what is and isn't the same).
 
 **Video:** [What it does, in 50 seconds](https://www.youtube.com/watch?v=PccB5tL7rsQ)
 
 ![The transport at work, with Show Trace on](docs/hero.png)
 
-*Show Trace on: the green plot is the error signal down the picture — the same
-shape the image is being torn by — with the audio meters and a seven-segment
+*Show Trace on: the green plot is the error signal down the picture, the same
+shape the image is being torn by, with the audio meters and a seven-segment
 readout of weighted wow and flutter underneath.*
 
 <!-- downloads:start -->
@@ -79,10 +79,10 @@ a clock.** Every pixel gets a tape time, and one error signal is evaluated there
 Nothing else. Wow leans the whole frame; flutter draws a travelling wave down it
 that *scrolls* between frames, because the clock moved; scrape flutter bands it
 finely. And because tape time varies along the line as well as down the picture,
-lines stretch rather than merely shifting — which is what real time-base error
+lines stretch rather than just shifting, which is what real time-base error
 does.
 
-**Noise reduction is a round trip through a medium, and every artifact anybody
+**Noise reduction is a round trip through a medium, and every artefact anybody
 recognises is the two ends disagreeing.** So the chain here is the real chain, in
 the real order:
 
@@ -90,32 +90,32 @@ the real order:
 
 The hiss gets bent once where the picture gets bent twice. Which means:
 
-- **Decode with nothing encoded** and the picture goes dull and starts breathing —
+- **Decode with nothing encoded** and the picture goes dull and starts breathing:
   fine detail cut on the assumption it was boosted, by an amount that follows the
   picture's own content.
 - **Encode with nothing decoding** and it goes hard and glassy, edges screaming.
 - **Mistrack the levels** and the round trip cancels at some brightnesses and not
   others, so detail pumps as the shot changes. This is a tape recorded on one deck
-  and played on another, and it is the control most worth reaching for.
+  and played on another, and it's the control most worth reaching for.
 
 The processing is **one-dimensional and horizontal**, because tape has one
 frequency axis and it lands on the picture as the scan direction. Vertical edges
-pump; horizontal ones sit perfectly still. That asymmetry is the effect, not a
-shortcut — see [`source/Compander.h`](source/Compander.h).
+pump; horizontal ones sit perfectly still. That asymmetry is the effect rather
+than a shortcut (see [`source/Compander.h`](source/Compander.h)).
 
 ## Controls
 
-**Transport** — Machine (Cassette, Reel to Reel, Video Head, Failing), Wow, Wow
+**Transport:** Machine (Cassette, Reel to Reel, Video Head, Failing), Wow, Wow
 Rate, Flutter, Flutter Rate, Scrape, Drift, Tape Speed, Amount, Vertical.
 
-**Tape** — Hiss, Dropouts, Head Wear.
+**Tape:** Hiss, Dropouts, Head Wear.
 
-**Noise Reduction** — NR Type (Off, Type B, Type C), NR Mode (Encode + Decode,
+**Noise Reduction:** NR Type (Off, Type B, Type C), NR Mode (Encode + Decode,
 Decode Only, Encode Only), Mistracking, NR Strength.
 
-**Reaction** — an audio input, Sync, Beat Depth, Beat Decay, Division, Level
+**Reaction:** an audio input, Sync, Beat Depth, Beat Decay, Division, Level
 Depth, Band Depth, Route. A beat puts a sharp excursion straight into the error
-signal — the belt slipping — rather than modulating something already running,
+signal (the belt slipping) rather than modulating something already running,
 because only the first of those reads as mechanical. Level hands the transport's
 own wow and flutter over to the music. Band energy pushes the decoder off level,
 so the noise reduction breathes with the mix.
@@ -123,35 +123,35 @@ so the noise reduction breathes with the mix.
 Every reactive depth defaults to zero, so dropped on a layer with nothing routed
 this is an ordinary manual tape emulation and behaves like one.
 
-**Output** — Show Trace, Mix.
+**Output:** Show Trace, Mix.
 
 ### Tape Speed, and the honest bit
 
 A real 625-line picture scans at 15625 lines per second, and at that rate
 audio-band flutter is a *constant* across the whole frame: no vertical structure,
 no travelling wave, no tearing. Audio wow and flutter and video time-base error
-are not the same phenomenon and do not live in the same band.
+aren't the same phenomenon and don't live in the same band.
 
-So this plugin does not pretend they do. It does what it says — runs a picture
-through a **cassette transport** — and a cassette transport does not scan at 15625
-lines a second. `Tape Speed` is that fiction, exposed: from about two milliseconds
-of tape per picture, where the frame is rigid and only wow survives, to about two
-seconds, where a single flutter cycle spans a few scanlines and the image comes
-apart into ribbons.
+So this plugin doesn't pretend they do. It does what it says on the tin, running
+a picture through a **cassette transport**, and a cassette transport doesn't scan
+at 15625 lines a second. `Tape Speed` is that fiction, out in the open: from about
+two milliseconds of tape per picture, where the frame is rigid and only wow
+survives, to about two seconds, where a single flutter cycle spans a few scanlines
+and the image comes apart into ribbons.
 
 ### Show Trace
 
-Draws the error signal as a function of position down the picture — the exact
-quantity being applied — on a graticule marked at ±0.5 and ±1.0, with the five
+Draws the error signal as a function of position down the picture (the actual
+quantity being applied) on a graticule marked at ±0.5 and ±1.0, with the five
 band and beat meters underneath and a seven-segment readout of the weighted
 wow-and-flutter figure.
 
 That figure is measured the way a real meter measures it: the error is sampled at
 2 kHz for four seconds, run through a DIN 45507 weighting curve, and the RMS of
 the settled part is taken. The unit is a percentage of **one line period** rather
-than of nominal tape speed, because there is no tape speed here to be a percentage
-of. Expect readings an order or two worse than any deck ever shipped; that is the
-point of an effect.
+than of nominal tape speed, because there's no tape speed here to be a percentage
+of. Expect readings an order or two worse than any deck ever shipped. That's
+rather the point of an effect.
 
 ## Presets
 
@@ -159,18 +159,19 @@ Clean Deck, Compact Cassette, Chewed Tape, Undecoded, Wrong Deck, Head Clog,
 Ribbons, Beat Slip, Breathing.
 
 Seven leave every reactive depth at zero, so a preset picked with nothing routed
-still behaves. The two that do not have it in their names — and those two are
+still behaves. The two that don't have it in their names, and those two are
 Resolume-only, because the OpenFX build has no audio to react to.
 
 ## OpenFX — Resolve, Vegas, Nuke, Natron
 
 The same effect also builds as an OpenFX plugin, for DaVinci Resolve, Vegas
-Pro, Nuke and Natron — though it has only been run in one of them, Resolve, as a
-Fusion tool on macOS; see [Status](#status). It is a CPU render of the same three passes: the transport, the compander, every control
-curve and the preset table are the same C++ the Resolume build runs, and the
-per-pixel stage is a line-for-line C++ mirror of the GLSL, tested against it —
-the two agree to within one code value in 8 bits, at defaults, across every
-stage and at every preset the OpenFX menu offers.
+Pro, Nuke and Natron, though it's only been run in one of them, Resolve, as a
+Fusion tool on macOS; see [Status](#status). It's a CPU render of the same three
+passes: the transport, the compander, every control curve and the preset table are
+the same C++ the Resolume build runs, and the per-pixel stage is a line-for-line
+C++ mirror of the GLSL, tested against it. The two agree to within one code value
+in 8 bits, at defaults, across every stage and at every preset the OpenFX menu
+offers.
 
 It ships from **v0.2.0**: each release carries `ferric-ofx-macos-universal.zip`,
 `ferric-ofx-windows-x86_64.zip` and `ferric-ofx-linux-x86_64.zip`. Grab the one
@@ -184,23 +185,23 @@ Windows  C:\Program Files\Common Files\OFX\Plugins\
 Linux    /usr/OFX/Plugins/
 ```
 
-It appears as **Ferric** under **Stoatworks**.
+It shows up as **Ferric** under **Stoatworks**.
 
-**What is different from the Resolume build, and why:**
+**What's different from the Resolume build, and why:**
 
 - **No Reaction group.** OpenFX gives a plugin no audio and no tempo, so the
   audio input, Sync, Beat Depth, Beat Decay, Division, Level Depth, Band Depth
-  and Route are not there at all rather than there and dead. What is left is the
+  and Route aren't there at all, rather than there and dead. What's left is the
   manual transport, which is what the Resolume build is with nothing routed.
 - **Two fewer presets.** Beat Slip and Breathing are built on the reaction, so
-  they are left out of the OpenFX menu rather than offered as a quieter picture
+  they're left out of the OpenFX menu rather than offered as a quieter picture
   under the same name. The other seven are identical in both builds.
 - **The hiss and the dropouts move with the frame's time.** The Resolume build
-  integrates them over frame deltas so a stalled host does not jump the grain;
-  an OpenFX host renders frames out of order and alone, so here they are
-  `time × rate`. The transport was already a function of time in both. Every
-  frame is therefore a pure function of its own time — scrub anywhere and it
-  renders the same as playing up to it.
+  integrates them over frame deltas so a stalled host doesn't jump the grain;
+  an OpenFX host renders frames out of order and alone, so here they're
+  `time × rate`. The transport was already a function of time in both. So every
+  frame is a pure function of its own time: scrub anywhere and it renders the
+  same as playing up to it.
 - **Resolve's Fusion page reports the frame rate on the effect but not on its
   clips; the plugin reads the effect's, and assumes 24 fps only where a host
   reports none.** So the wow, flutter, drift, hiss and dropouts follow the
@@ -215,7 +216,7 @@ It appears as **Ferric** under **Stoatworks**.
 
 ## Build
 
-Needs CMake 3.15+, a C++17 compiler, and the FFGL SDK submodule.
+You'll need CMake 3.15+, a C++17 compiler, and the FFGL SDK submodule.
 
 ```bash
 git clone --recursive https://github.com/stoatworks-labs/ferric
@@ -226,14 +227,14 @@ cmake --install build     # drops the bundle into Resolume's Extra Effects folde
 ```
 
 macOS builds are universal (Apple Silicon + Intel) by default. The same build
-produces `build/Ferric.ofx.bundle`; `-DBUILD_OFX=OFF` skips it, and
-`-DFERRIC_BUILD_FFGL=OFF` builds the OpenFX plugin alone with nothing but a
-compiler — no FFGL SDK and no GLEW — which is how the Linux release job builds
+makes `build/Ferric.ofx.bundle`; `-DBUILD_OFX=OFF` skips it, and
+`-DFERRIC_BUILD_FFGL=OFF` builds the OpenFX plugin on its own with nothing but a
+compiler (no FFGL SDK and no GLEW), which is how the Linux release job builds
 it.
 
 ## Status
 
-**What is verified, and how.** `tools/verify.sh` runs 34 checks against a clean
+**What's verified, and how.** `tools/verify.sh` runs 34 checks against a clean
 universal build of both plugins (one, the Fusion check below, needs a test host
 with `--quirks` and skips without one). They drive the real plugin class through the
 real FFGL sequence in a headless OpenGL 4.1 core context, the built bundle is
@@ -263,7 +264,7 @@ thread for the passes alone).
 
 ### In Resolume
 
-Verified in **Arena 7.27.1 rev 15990** on both platforms — the same host build on
+Verified in **Arena 7.27.1 rev 15990** on both platforms, the same host build on
 each, so a difference between them is the plugin and not the host.
 
 | | macOS | Windows |
@@ -278,57 +279,56 @@ each, so a difference between them is the plugin and not the host.
 | factory preset applies and holds | yes | yes |
 
 The Windows run is the more interesting half: **llvmpipe is a completely
-different GLSL compiler from Apple's**, so it genuinely catches shader source
-that only ever compiled on one vendor. It says nothing about NVIDIA or AMD driver
+different GLSL compiler from Apple's**, so it catches shader source that only
+ever compiled on one vendor's. It says nothing about NVIDIA or AMD driver
 quirks, and nothing at all about performance.
 
-Two things that only a real host could establish:
+Two things only a real host could establish:
 
-- **Resolume sends `SetTime` in milliseconds**, confirmed — and on the macOS
+- **Resolume sends `SetTime` in milliseconds**, confirmed, and on the macOS
   machine it was reading **499,217,238 ms**, which is 5.8 days of absolute clock.
-  That makes the phase-wrapping in `Transport.h` load-bearing from the *first
-  frame* rather than twenty minutes in: a naive `float` of that number resolves
-  to 0.03 s, which is a fifth of a whole picture's worth of tape.
+  So the phase-wrapping in `Transport.h` matters from the *first frame* rather
+  than twenty minutes in: a naive `float` of that number resolves to 0.03 s,
+  which is a fifth of a whole picture's worth of tape.
 - **The factory-preset override pattern works.** A preset applied through the
   API stuck across nine seconds of Resolume restating its own values, and a
-  manual edit of a covered control correctly released it back to Custom. That is
+  manual edit of a covered control released it back to Custom as it should. That's
   the bug that cost this fleet a shipped release, and `--echo` could only
   simulate it.
 
-**What is still NOT verified.** No operator has dragged a slider — every control
+**What's still NOT verified.** No operator has dragged a slider. Every control
 above was driven over the REST API, so inspector *layout* and feel are unjudged.
 No NVIDIA or AMD driver has run it.
 
 **The OpenFX build has been in one real host: DaVinci Resolve Studio 21.1 on
 macOS, as a Fusion tool.** The first try, on 2026-10-03, failed: every frame
 came back with an error, because Resolve's Fusion page reports no frame rate
-on its clips and the plugin read a clip's unguarded. That is fixed — every host
-property is now read so that a missing one cannot fail the render, and the
-plugin goes on to the effect's rate, which Fusion does report — and
-on 2026-10-04 the fixed build **rendered in Resolve**: six 1080p frames
-(MediaIn → Ferric → MediaOut, Wow 0.8, Flutter 0.6, Hiss 0.5) match the test
-host at 24 fps to **1/255 worst**, with at most five pixels a frame differing
-at all. It has not been checked on Resolve's Edit or Color page. Vegas, Nuke and
-Natron have never loaded it. It has
-been loaded, described and rendered by `ofxprobe` and an extended build
+on its clips and the plugin read a clip's unguarded. That's fixed. Every host
+property is now read so that a missing one can't fail the render, and the
+plugin goes on to the effect's rate, which Fusion does report. On 2026-10-04 the
+fixed build **rendered in Resolve**: six 1080p frames (MediaIn → Ferric →
+MediaOut, Wow 0.8, Flutter 0.6, Hiss 0.5) match the test host at 24 fps to
+**1/255 worst**, with at most five pixels a frame differing at all. It hasn't been
+checked on Resolve's Edit or Color page. Vegas, Nuke and Natron have never loaded
+it. It's been loaded, described and rendered by `ofxprobe` and an extended build
 of it, on macOS only: 8-bit and float RGBA, Filter and General contexts,
 presets applied and released through the host's edit action, keyframed
-controls, and isIdentity. Rendering a frame alone, after the frames before it, and out of
-order all give byte-identical output. The Windows and Linux bundles are built
-in CI; the Linux one is `dlopen`ed on Rocky 8 (the distro Resolve supports) by
-the release workflow, and the Windows one has never been loaded by anything.
+controls, and isIdentity. Rendering a frame alone, after the frames before it, and
+out of order all give byte-identical output. The Windows and Linux bundles are
+built in CI; the Linux one is `dlopen`ed on Rocky 8 (the distro Resolve supports)
+by the release workflow, and the Windows one has never been loaded by anything.
 16-bit images, RGB-only clips and straight alpha go through the same
 marshalling as the fleet's other OpenFX ports, but no host has delivered them
-here. A proxy render scale is not compensated for: the compander, head wear and
+here. A proxy render scale isn't compensated for: the compander, head wear and
 hiss work in render pixels, as they do in Resolume at a smaller composition
 size, so a proxy preview looks coarser than the final render.
 
-⚠️ During the Windows session Arena restarted once, at a point I could not
+⚠️ During the Windows session Arena restarted once, at a point I couldn't
 attribute to Ferric: there were no application crash events, the plugin had
 already rendered correctly, and the instance that came up afterwards never
 loaded Ferric at all. A stale Windows Firewall prompt for an unrelated
 application was found sitting on that desktop, dating from four days earlier.
-Recorded as unexplained rather than as either a pass or a fault.
+I've recorded it as unexplained rather than as either a pass or a fault.
 
 ## Licence
 
