@@ -528,5 +528,32 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "The browser demo"
+# ---------------------------------------------------------------------------
+# demo/ is the page at ferric-demo.stoatworks-labs.com, and its claim is that it
+# runs the plugin's own shaders over a port of its CPU half. Nothing else here
+# has heard of it, so a change to a shader or to Transport, Controls, Compander
+# or Drive would leave the page quietly running the old maths. The first check
+# holds demo/shaders.js to source/shaders character for character (and the way
+# the pieces are joined); the second runs demo/ferric.js and the plugin's own
+# C++ over one scenario and compares every value, with a control that must fail.
+# Node is optional, so the second skips without it.
+if python3 demo/tools/check_shaders.py >/tmp/ferric-demo-shaders.log 2>&1; then
+    ok "the demo's shaders are the plugin's, character for character"
+else
+    bad "the demo's shaders have drifted -- rerun demo/tools/check_shaders.py --write (see /tmp/ferric-demo-shaders.log)"
+    grep -E '^FAIL' /tmp/ferric-demo-shaders.log | head -6 | sed 's/^/        /'
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+    skip "no node -- the demo's port of the CPU half is UNCHECKED"
+elif demo/tools/crosscheck/crosscheck.sh >/tmp/ferric-demo-port.log 2>&1; then
+    ok "the demo's port of the CPU half matches the plugin's C++ ($(grep -m1 -o '[0-9]* values: [0-9]* identical' /tmp/ferric-demo-port.log) to the bit)"
+else
+    bad "the demo's port of the CPU half has drifted from the C++ -- see /tmp/ferric-demo-port.log"
+    grep -E '^FAIL' /tmp/ferric-demo-port.log | head -6 | sed 's/^/        /'
+fi
+
+# ---------------------------------------------------------------------------
 printf '\n\033[1m%d ok, %d failed, %d skipped\033[0m\n' "$PASS" "$FAIL" "$SKIP"
 [ "$FAIL" -eq 0 ]
