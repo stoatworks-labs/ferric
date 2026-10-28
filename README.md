@@ -23,6 +23,11 @@ OpenFX plugin for **DaVinci Resolve, Vegas, Nuke and Natron** (see
 
 **Video:** [What it does, in 50 seconds](https://www.youtube.com/watch?v=PccB5tL7rsQ)
 
+**Try it in a browser:** [ferric-demo.stoatworks-labs.com](https://ferric-demo.stoatworks-labs.com/)
+is the plugin's own shaders over a JavaScript port of its CPU half, on generated
+clips or your own. It's a demo, not the plugin, and there's no audio in it (see
+[the browser demo](#the-browser-demo)).
+
 ![The transport at work, with Show Trace on](docs/hero.png)
 
 *Show Trace on: the green plot is the error signal down the picture, the same
@@ -234,9 +239,9 @@ it.
 
 ## Status
 
-**What's verified, and how.** `tools/verify.sh` runs 34 checks against a clean
+**What's verified, and how.** `tools/verify.sh` runs 36 checks against a clean
 universal build of both plugins (one, the Fusion check below, needs a test host
-with `--quirks` and skips without one). They drive the real plugin class through the
+with `--quirks` and skips without one); two of them are the browser demo's. They drive the real plugin class through the
 real FFGL sequence in a headless OpenGL 4.1 core context, the built bundle is
 loaded through `plugMain` the way a host loads it, and the built OpenFX bundle
 is loaded and rendered by `ofxprobe` (resolume-ofx-bridge's test host).
@@ -261,6 +266,29 @@ Render cost is 0.34 ms/frame at 1080p and 0.70 ms at 4K, with Type C and dropout
 running, on Apple Silicon. The OpenFX build's CPU render of the same settings is
 about 30 ms/frame at 1080p through the plugin on 8 threads (215 ms on one
 thread for the passes alone).
+
+### The browser demo
+
+[ferric-demo.stoatworks-labs.com](https://ferric-demo.stoatworks-labs.com/) runs
+the plugin's three GLSL passes in WebGL2, copied unedited (`demo/tools/check_shaders.py`
+fails `verify.sh` if a character drifts), over a JavaScript port of the CPU half:
+the frame's transport phases, every control's conversion, the compander's stage
+table, the beat envelope and the weighted figure. The wobble isn't a random walk
+or a seed in either; it's a function of the clock, as in the plugin.
+
+- **No audio.** Audio, Level Depth, Band Depth and Route aren't on the page. With
+  silence they change nothing at their defaults, so leaving them out is exact.
+  Sync, Beat Depth, Beat Decay and Division are there, on the page's own 120 BPM,
+  and a beat lurches by the plugin's floor for silence (0.35 of Beat Depth).
+- **The port against the C++:** `demo/tools/crosscheck/crosscheck.sh` (in
+  `verify.sh`) runs both over one scenario; 548,532 of 550,194 values are
+  identical to the bit, and the rest are Apple's `powf` against JavaScript's in
+  the last bit.
+- **Frames against the plugin:** the page's renderer and `frtest --pipe` (the real
+  class), test card, 640 × 360, 60 frames, same Mac: eight of nine cases have
+  every pixel within one level of 255. Head Clog has 92.5% within one and none
+  past three, because the Apple Silicon build fuses one multiply-add in the hiss
+  width and the port, like the Intel build, doesn't.
 
 ### In Resolume
 

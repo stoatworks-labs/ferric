@@ -336,6 +336,84 @@ changes nothing visible; the declaration is still the correct one, and other hos
 The flag changes no pixels: `ofxprobe` renders byte-identical with and without it,
 on a moving sequence, on a still and under `--quirks fusion`.
 
+## The browser demo (`demo/`)
+
+Live at **https://ferric-demo.stoatworks-labs.com** since 2026-10-28. `CLAUDE.md`
+has the commands; this is what it is and what it is not.
+
+**Two halves, not equally faithful.** The GPU half is the plugin's: `demo/shaders.js`
+is the raw strings of `source/shaders/*.cpp` plus `kHeader`, spliced by
+`demo/tools/check_shaders.py --write`, run as the same three passes into the same
+RGBA16F buffers. The CPU half is a PORT in `demo/ferric.js`: `phaseAt`, `error`
+and `weightedPercent` (Transport.cpp), every conversion (Controls.cpp),
+`uniforms` (Compander.cpp), `compute` (Drive.cpp), the preset table, and the CPU
+part of `ProcessOpenGL` as `FerricFrames.frame()`, which returns every uniform.
+JavaScript's numbers are doubles, so `phaseAt` is the same arithmetic; the
+floats are `Math.fround` where the C++ narrows.
+
+**What the page leaves out, and why that is exact.** Audio, Level Depth, Band
+Depth and Route are not on the panel: a browser has no FFT parameter and asking
+for a microphone is not worth it. With silence every band and the level are
+zero, so at their defaults those three change nothing. They are held at the
+defaults, or at what a preset writes (Breathing writes Band Depth 0.75, which
+with silence pushes by 0). Sync, Beat Depth, Beat Decay and Division read the
+host's tempo, not audio, so they are there: the page is the host, at 120 BPM
+with the bar position from its clock, as `frtest` drives the plugin. A beat
+lurches by `0.35 x` Beat Depth (Drive.cpp's floor for silence); a kick drum in
+Resolume takes it to the whole depth. The Preset parameter is the plugin's, at
+the bottom: choosing one writes the covered controls (the page moves the
+sliders; Resolume does not), and editing a covered one drops to Custom. The
+About block is not on the panel.
+
+**How it is held to the plugin.**
+- `demo/tools/check_shaders.py` (in `verify.sh`): every shader piece character
+  for character, and the assembly lines in Passes.cpp, Ferric.cpp and ferric.js.
+- `demo/tools/crosscheck/crosscheck.sh` (in `verify.sh`, needs Node):
+  `printer.cpp` built against the plugin's own Transport/Controls/Compander/Drive
+  and `frames.mjs` over ferric.js run one scenario (`scenario.py`: every slider
+  across its travel, every dropdown element and one past the end, every preset
+  for two seconds, Resolume's 499,217 s clock, a stall and a scrub, the beat at
+  every division and three decays, 300 random states). Measured 2026-10-28:
+  **548,532 of 550,194 values identical to the bit.** The rest are libm: Apple's
+  `powf` is not correctly rounded (about one slider position in 170 comes out an
+  ULP from `Math.pow` rounded to float), and a one-ULP rate moves a phase a long
+  way at half a million seconds. `compare.py` allows a phase to differ only where
+  that case's own rate differs. `printer.cpp` composes ProcessOpenGL's CPU part
+  by hand (the real method needs a GL context), so that composition is checked by
+  a reader and by the frames below.
+- `demo/tools/crosscheck/pixels.py` (manual: Chrome and `build/frtest`): the
+  page's renderer against `frtest --pipe`, the real class, on the test card at
+  640 x 360 after 60 frames at 60 fps. Measured 2026-10-28 on an M4 Max, page on
+  ANGLE Metal: **eight of nine cases with every pixel within 1/255**; Head Clog
+  92.5% within 1/255 and worst 3/255. On SwiftShader the same, plus at most five
+  single pixels a case (of 230,400) on the other side of a hard edge.
+
+**☠️ The arm64 plugin fuses multiply-adds; the port follows the source as
+written.** Apple clang's default `-ffp-contract=on` turns
+`kHissWidthNew + ( kHissWidthOld - kHissWidthNew ) * headWear` into one `fmadd`,
+so at Head Wear 0.8 the Apple Silicon build's hiss width is one ULP from what
+the expression gives unfused, which is what the x86_64 slice computes and what
+ferric.js computes. The hiss rate then differs by a part in ten million and the
+hiss has drifted a fraction of a grain after a second: that is all of Head Clog's
+3/255. With the fused width put into the port for one run it went to 100% within
+1/255; it was put back, because the source is the reference and the two slices
+already disagree. `crosscheck.sh` builds `printer.cpp` with
+`-ffp-contract=off` for the same reason.
+
+**Traps met building it.**
+- **A cue sheet that sets `Preset` and a covered control does not do what it
+  reads as.** Tracks are applied in name order every frame: the covered control
+  first, then Preset, which overwrites it on frame 0; from frame 1 on the host is
+  "restating" the same value, which the override rule ignores. So `0 Preset 6` +
+  `0 Hiss 0` renders Head Clog's hiss, not none. To compare a variation of a
+  preset, set every value explicitly.
+- **`compare.py`'s control caught a bug in `compare.py`.** It once split cases
+  on line numbers instead of lines, so every phase difference looked explained
+  and the 0.1% mutant passed. Keep the control.
+- **JSON hands over doubles; the host holds floats.** `pixels.mjs` rounds every
+  host value with `Math.fround`; without it the hiss width happened to round to
+  the fused answer and hid the FMA difference.
+
 ## Measured, on Apple Silicon
 
 | what | reading |
@@ -357,6 +435,8 @@ on a moving sequence, on a still and under `--quirks fusion`.
 | OpenFX CPU passes, 1080p, Type C + dropouts | 215 ms on 1 thread, 27.6 ms on 8 |
 | OpenFX plugin in the host, 1080p 8-bit, 8 threads | ~31 ms Type C + dropouts, ~15 ms defaults (medians) |
 | OpenFX CPU, 4K | 863 ms on 1 thread, 144 ms on 8 |
+| browser demo's port vs the C++, one scenario (`crosscheck.sh`) | 548,532 of 550,194 values bit-identical; the rest libm's last bit |
+| browser demo's frames vs `frtest --pipe`, 9 cases, ANGLE Metal | 8 cases all pixels within 1/255; Head Clog 92.5%, worst 3/255 (FMA, above) |
 
 The two-stage signature is the interesting row: Type C pulls further ahead of
 Type B as the recorded level drops, which is what a second stage an order below

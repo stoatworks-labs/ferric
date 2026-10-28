@@ -35,7 +35,8 @@ or the clock.
   must STEP (two keys one frame apart), never ramp.
 
 ## Verify
-- **Everything (34 checks, clean universal build, both plugins): `tools/verify.sh`**
+- **Everything (36 checks, clean universal build, both plugins, and the browser
+  demo's two): `tools/verify.sh`**
   — the Fusion check needs `FERRIC_OFXPROBE` pointing at a probe with
   `--quirks fusion`, and skips without one
 - The GLSL error signal against `Transport.cpp`: `./build/frtest --tbe`
@@ -126,12 +127,26 @@ rendered in Resolve's Fusion page on macOS, matching the test host at 24 fps to
 bundles have never rendered in a host. `docs/NOTES.md` says exactly what was and
 was not checked.
 
-## Not built yet
-- **The browser demo.** Most video plugins in this fleet ship a hand-written
-  WebGL demo at `<slug>-demo.stoatworks-labs.com`, served from `demo/` by the
-  repo's own Worker. Ferric has none. Nothing deploys it automatically and
-  `gen-downloads.py` does not know it exists, so adding one is a deliberate
-  piece of work — see the checklist's section 1c.
+## Browser demo
+
+`demo/` is the page at **https://ferric-demo.stoatworks-labs.com** (added
+2026-10-28): the plugin's three GLSL passes, copied unedited, over a JavaScript
+port of its CPU half in `demo/ferric.js`. Static ES modules, no build; the kit in
+`demo/vendor/` is stoatworks-backend's `resolume-demo/kit` and is never edited
+here. `AGENTS.md` has what it does and does not reproduce.
+- Serve it: `cd demo && python3 -m http.server 8000`
+- After changing a shader: `python3 demo/tools/check_shaders.py --write`
+  (never edit `demo/shaders.js` by hand); `verify.sh` fails on drift
+- After changing Transport, Controls, Compander, Drive, Presets.h or the CPU
+  part of ProcessOpenGL: change `demo/ferric.js` to match, then
+  `demo/tools/crosscheck/crosscheck.sh` (also in `verify.sh`; needs Node)
+- Frames against the real plugin class: serve `demo/`, then
+  `python3 demo/tools/crosscheck/pixels.py --base http://127.0.0.1:8000/`
+  (needs Chrome and `build/frtest`; a measurement, not in `verify.sh`)
+- Deploy: a push to main runs `.github/workflows/deploy.yml`; by hand,
+  `cf-run npx wrangler deploy`. It is a Worker **route** on a proxied AAAA 100::
+  record (`wrangler.toml` says why). Verify by content:
+  `curl -s 'https://ferric-demo.stoatworks-labs.com/?cb=1' | grep -o '<title>[^<]*'`
 
 ## Diagnostics
 
