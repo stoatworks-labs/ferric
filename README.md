@@ -28,6 +28,8 @@ is the plugin's own shaders over a JavaScript port of its CPU half, on generated
 clips or your own. It's a demo, not the plugin, and there's no audio in it (see
 [the browser demo](#the-browser-demo)).
 
+The [project page](https://stoatworks-labs.com/software/ferric/) has the downloads, the [user guide](https://stoatworks-labs.com/software/ferric/guide/) and the video.
+
 ![The transport at work, with Show Trace on](docs/hero.png)
 
 *Show Trace on: the green plot is the error signal down the picture, the same
